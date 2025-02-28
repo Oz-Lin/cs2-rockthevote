@@ -1,8 +1,10 @@
 ﻿using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
-using CounterStrikeSharp.API.Modules.Menu;
 using CounterStrikeSharp.API.Modules.Timers;
 using cs2_rockthevote.Core;
+using CS2ScreenMenuAPI;
+using CS2ScreenMenuAPI.Enums;
+using CS2ScreenMenuAPI.Internal;
 using System.Data;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -139,30 +141,34 @@ namespace cs2_rockthevote
         private void ShowMapVoteMenu(CCSPlayerController player)
         {
             var menu = CreateMapVoteMenu();
-            MenuManager.OpenChatMenu(player, menu);
+            MenuAPI.OpenMenu(_plugin, player, menu);
         }
 
-        private ChatMenu CreateMapVoteMenu()
+        private ScreenMenu CreateMapVoteMenu()
         {
-            ChatMenu menu = new(_localizer.Localize("emv.hud.menu-title"));
+            ScreenMenu menu = new ScreenMenu($"{_localizer.Localize("emv.hud.menu-title")}:", _plugin)
+            {
+                PostSelectAction = PostSelectAction.Close,
+                IsSubMenu = false,
+            };
 
             if (_eomConfig != null && _eomConfig.AllowExtend && (_eomConfig.ExtendLimit > 0 || _eomConfig.ExtendLimit == -1))
             {
                 Votes[_localizer.Localize("general.extend-current-map")] = 0;
-                menu.AddMenuOption(_localizer.Localize("general.extend-current-map"), (player, option) =>
+                menu.AddOption(_localizer.Localize("general.extend-current-map"), (player, option) =>
                 {
+                    Console.WriteLine("EndMapVoteManager (155)");
                     MapVoted(player, _localizer.Localize("general.extend-current-map"));
-                    MenuManager.CloseActiveMenu(player);
                 });
             }
 
             foreach (var map in mapsEllected.Take((_eomConfig != null && _eomConfig.AllowExtend && (_eomConfig.ExtendLimit > 0 || _eomConfig.ExtendLimit == -1)) ? (MAX_OPTIONS_HUD_MENU - 1) : MAX_OPTIONS_HUD_MENU))
             {
                 Votes[map] = 0;
-                menu.AddMenuOption(map, (player, option) =>
+                menu.AddOption(map, (player, option) =>
                 {
+                    Console.WriteLine("EndMapVoteManager (166)");
                     MapVoted(player, map);
-                    MenuManager.CloseActiveMenu(player);
                 });
             }
 
@@ -333,7 +339,7 @@ namespace cs2_rockthevote
             var menu = CreateMapVoteMenu();
 
             foreach (var player in ServerManager.ValidPlayers())
-                MenuManager.OpenChatMenu(player, menu);
+                MenuAPI.OpenMenu(_plugin, player, menu);
 
             timeLeft = _config.VoteDuration;
             Timer = _plugin!.AddTimer(1.0F, () =>
@@ -341,6 +347,10 @@ namespace cs2_rockthevote
                 if (timeLeft <= 0)
                 {
                     EndVote();
+
+                    foreach (var player in Utilities.GetPlayers())
+                        if (player != null)
+                            MenuAPI.CloseActiveMenu(player);
                 }
                 else
                     timeLeft--;

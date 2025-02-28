@@ -3,7 +3,9 @@ using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
 using CounterStrikeSharp.API.Modules.Commands;
-using CounterStrikeSharp.API.Modules.Menu;
+using CS2ScreenMenuAPI;
+using CS2ScreenMenuAPI.Enums;
+using CS2ScreenMenuAPI.Internal;
 using cs2_rockthevote.Core;
 
 namespace cs2_rockthevote
@@ -36,13 +38,20 @@ namespace cs2_rockthevote
     public class NominationCommand : IPluginDependency<Plugin, Config>
     {
         Dictionary<int, (string PlayerName, List<string> Maps)> Nominations = new();
-        ChatMenu? nominationMenu = null;
+        ScreenMenu? nominationMenu = null;
         private RtvConfig _config = new();
         private GameRules _gamerules;
         private StringLocalizer _localizer;
         private PluginState _pluginState;
         private MapCooldown _mapCooldown;
         private MapLister _mapLister;
+
+        private Plugin? _plugin;
+
+        public void OnLoad(Plugin plugin)
+        {
+            _plugin = plugin;
+        }
 
         public Dictionary<int, (string PlayerName, List<string> Maps)> Nomlist => Nominations;
 
@@ -68,19 +77,19 @@ namespace cs2_rockthevote
 
         public void OnMapsLoaded(object? sender, Map[] maps)
         {
-            nominationMenu = new("Nomination");
+            nominationMenu = new ScreenMenu("Nomination", _plugin)
+            {
+                PostSelectAction = PostSelectAction.Close,
+                IsSubMenu = false, // this is not a sub menu
+            };
+
             foreach (var map in _mapLister.Maps!.Where(x => x.Name != Server.MapName))
             {
-                nominationMenu.AddMenuOption(map.Name, (CCSPlayerController player, ChatMenuOption option) =>
-                {
+                //nominationMenu.AddOption(map.Name, (CCSPlayerController player, ChatMenuOption option) =>
+                nominationMenu.AddOption(map.Name, ((player, option) => {
                     Nominate(player, option.Text);
-                }, _mapCooldown.IsMapInCooldown(map.Name));
+                }), _mapCooldown.IsMapInCooldown(map.Name));
             }
-
-            nominationMenu.AddMenuOption("Exit", (CCSPlayerController player, ChatMenuOption option) =>
-            {
-                MenuManager.CloseActiveMenu(player);
-            });
         }
 
         public void CommandHandler(CCSPlayerController? player, string map)
@@ -127,7 +136,7 @@ namespace cs2_rockthevote
 
         public void OpenNominationMenu(CCSPlayerController player)
         {
-            MenuManager.OpenChatMenu(player!, nominationMenu!);
+            MenuAPI.OpenSubMenu(_plugin, player, nominationMenu);
         }
 
         void Nominate(CCSPlayerController player, string map)
@@ -170,7 +179,6 @@ namespace cs2_rockthevote
                 player.PrintToChat(_localizer.LocalizeWithPrefix("nominate.already-nominated", matchingMap,
                     totalVotes));
             }
-            MenuManager.CloseActiveMenu(player);
         }
 
         public List<string> NominationWinners()
