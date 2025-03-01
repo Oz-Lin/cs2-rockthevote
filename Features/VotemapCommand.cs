@@ -134,9 +134,9 @@ namespace cs2_rockthevote
 
         public void OpenVotemapMenu(CCSPlayerController player)
         {
-            if (_config.HudMenu)
+            if (_config.HudMenu == 1)
                 MenuManager.OpenCenterHtmlMenu(_plugin!, player, votemapMenuHud!);
-            else
+            if (_config.HudMenu == 0)
                 MenuManager.OpenChatMenu(player, votemapMenu!);
         }
 

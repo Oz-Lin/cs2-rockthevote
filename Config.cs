@@ -22,7 +22,7 @@ namespace cs2_rockthevote
         public int MapsToShow { get; set; }
         public bool ChangeMapImmediately { get; set; }
         public int VoteDuration { get; set; }
-        public bool HudMenu { get; set; }
+        public int HudMenu { get; set; }
         public bool HideHudAfterVote { get; set; }
         public int ExtendTimeStep { get; set; } 
         public int ExtendRoundStep { get; set; }
@@ -36,7 +36,7 @@ namespace cs2_rockthevote
         public int VotePercentage { get; set; }
         public int ExtendTimeStep { get; set; }
         public int ExtendRoundStep { get; set; } 
-        public bool HudMenu { get; set; }
+        public int HudMenu { get; set; }
         public int ExtendLimit { get; set; }
     }
 
@@ -44,7 +44,7 @@ namespace cs2_rockthevote
     {
         public bool Enabled { get; set; } = true;
         public int MapsToShow { get; set; } = 6;
-        public bool HudMenu { get; set; } = true;
+        public int HudMenu { get; set; } = 1;
         public bool ChangeMapImmediately { get; set; } = false;
         public int VoteDuration { get; set; } = 30;
         public bool HideHudAfterVote { get; set; } = false;
@@ -71,7 +71,7 @@ namespace cs2_rockthevote
         public int MapsToShow { get; set; } = 6;
         public int VoteDuration { get; set; } = 30;
         public int VotePercentage { get; set; } = 60;
-        public bool HudMenu { get; set; } = true;
+        public int HudMenu { get; set; } = 1;
         public bool DontChangeRtv { get; set; } = true;
         public bool IgnoreSpec { get; set; } = true;
         public int VoteCooldownTime { get; set; } = 300;
@@ -105,7 +105,7 @@ namespace cs2_rockthevote
         public bool EnabledInWarmup { get; set; } = true;
         public int MinPlayers { get; set; } = 0;
         public int MinRounds { get; set; } = 0;
-        public bool HudMenu { get; set; } = false;
+        public int HudMenu { get; set; } = 0;
         public bool IgnoreSpec { get; set; } = true;
     }
 
@@ -118,7 +118,7 @@ namespace cs2_rockthevote
         public int ExtendRoundStep { get; set; } = 5;
         public int ExtendLimit { get; set; } = 3;
         public bool RoundBased { get; set; } = true;
-        public bool HudMenu { get; set; } = true;
+        public int HudMenu { get; set; } = 1;
     }
 
     public class TimeleftConfig
@@ -133,7 +133,7 @@ namespace cs2_rockthevote
 
     public class Config : IBasePluginConfig
     {
-        public int Version { get; set; } = 15;
+        public int Version { get; set; } = 16;
         public RtvConfig Rtv { get; set; } = new();
         public VotemapConfig Votemap { get; set; } = new();
         public EndOfMapConfig EndOfMapVote { get; set; } = new();

@@ -225,12 +225,12 @@ namespace cs2_rockthevote
             int index = 1;
             StringBuilder stringBuilder = new();
             stringBuilder.AppendFormat($"<b>{_localizer.Localize("emv.hud.hud-timer", timeLeft)}</b>");
-            if (!_config!.HudMenu)
+            if (_config!.HudMenu == 1)
                 foreach (var kv in Votes.OrderByDescending(x => x.Value).Take(MAX_OPTIONS_HUD_MENU).Where(x => x.Value > 0))
                 {
                     stringBuilder.AppendFormat($"<br>{kv.Key} <font color='green'>({kv.Value})</font>");
                 }
-            else
+            if (_config!.HudMenu == 0)
                 foreach (var kv in Votes.Take(MAX_OPTIONS_HUD_MENU))
                 {
                     stringBuilder.AppendFormat($"<br><font color='yellow'>!{index++}</font> {kv.Key} <font color='green'>({kv.Value})</font>");
@@ -348,7 +348,7 @@ namespace cs2_rockthevote
             _pluginState.EofVoteHappening = true;
             _config = config;
             int mapsToShow = _config!.MapsToShow == 0 ? MAX_OPTIONS_HUD_MENU : _config!.MapsToShow;
-            if (config.HudMenu && mapsToShow > MAX_OPTIONS_HUD_MENU)
+            if (config.HudMenu == 1 && mapsToShow > MAX_OPTIONS_HUD_MENU)
                 mapsToShow = MAX_OPTIONS_HUD_MENU;
 
             var mapsScrambled = Shuffle(new Random(),

@@ -18,7 +18,8 @@ Please drop a ⭐ star in the repository
 > ~~For non-round-based modes such as bhop/surf/kz/mg-course, I cannot guarantee your use case.~~ Please double-check your server cvar configs (such as `mp_timelimit`, `mp_maxrounds` etc, along with `TriggerSecondsBeforeEnd` and `TriggerRoundsBeforeEnd` in config.json) in case of compatibility issues.
   
 ## Requirements
-[Latest release of Counter Strike Sharp](https://github.com/roflmuffin/CounterStrikeSharp)
+- [Latest release of Counter Strike Sharp](https://github.com/roflmuffin/CounterStrikeSharp)
+- [ScreenMenuAPI](https://github.com/T3Marius/CS2ScreenMenuAPI) 
 
 # Installation
 - Download the latest release from https://github.com/Oz-Lin/cs2-rockthevote/releases
@@ -53,6 +54,7 @@ Please drop a ⭐ star in the repository
 
 # ⚠️ Help Wanted
 - WASD menu - a lot of code refactoring must be done before implementing this feature. Can't give guarantee about this feature. 
+- Currently work in progress. Thanks T3-Marius, XiaoLinWuDi, theextr1m
 
 # Translations
 | Language             | Contributor          |
@@ -91,7 +93,7 @@ Players can type rtv to request the map to be changed, once a number of votes is
 | MinPlayers          | Minimum amount of players to enable RTV/Nominate                                                                       | 0             | 0     |                                      |
 | MinRounds           | Minimum rounds to enable RTV/Nominate                                                                                  | 0             | 0     |                                      |
 | ChangeMapImmediately | Whether to change the map immediatly when vote ends or not                                                             | true          | false | true                                 |
-| HudMenu             | Whether to use HudMenu or just the chat one, when false the hud only shows which map is winning instead of actual menu | true          | false | true                                 |
+| HudMenu             | Whether to use HudMenu or just the chat one, when 0 the hud only shows which map is winning instead of actual menu | 1          | 0 | 2                                 |
 | HideHudAfterVote    | Whether to hide vote status hud after vote or not, only matters when HudMenu is true                                   | false         | false | true                                 |
 | MapsToShow          | Amount of maps to show in vote,                                                                                        | 6             | 1     | 6 with HudMenu, unlimited without it |
 | VoteDuration        | Seconds the RTV should last                                                                                            | 30            | 1     |                                      |
@@ -113,7 +115,7 @@ Based on `mp_timelimit` and `mp_maxrounds` cvar before the map ends a RTV like v
 | HideHudAfterVote        | Whether to hide vote status hud after vote or not, only matters when HudMenu is true                                   | false         | false | true                                 |
 | MapsToShow              | Amount of maps to show in vote,                                                                                        | 6             | 1     | 6 with HudMenu, unlimited without it |
 | VoteDuration            | Seconds the RTV should last                                                                                            | 30            | 1     |                                      |
-| HudMenu                 | Whether to use HudMenu or just the chat one, when false the hud only shows which map is winning instead of actual menu | true          | false | true                                 |
+| HudMenu                 | Whether to use HudMenu or just the chat one, when 0 the hud only shows which map is winning instead of actual menu | 1          | 0 | 2                                 |
 | TriggerSecondsBeforeEnd | Amount of seconds before end of the map that should trigger the vote, only used when mp_timelimit is greater than 0    | 120           | 1     |                                      |
 | TriggerRoundsBeforeEnd   | Amount of rounds before end of map that should trigger the vote, only used when mp_maxrounds is set                    | 2             | 1     |                                      |
 | DelayToChangeInTheEnd   | Delay in seconds that plugin will take to change the map after the win panel is shown to the players                   | 6             | 3     |                                      |
@@ -153,7 +155,7 @@ Players can extend the current map by using the `!ve` or `!voteextend` command. 
 | ExtendRoundStep         | How many rounds should the mp_maxrounds to be extended                                                                 | 5             | 0     |                                      |
 | ExtendLimit             | How many times the current map can be extended (-1 for unlimited extensions)                                           | 3             | -1     |                                      |
 | RoundBased              | Whether to extend `mp_timelimit` or extend current round `mp_roundtime`                                                | true          | false | true                                 |
-| HudMenu                 | Whether to use HudMenu or just the chat one                                                                            | true          | false | true                                 |
+| HudMenu                 | Whether to use HudMenu or just the chat one. 0 = Chat only, 1 = CenterHTML HUD, 2 = ScreenMenuHUD                      | 1          | 0 | 2                                 |
 
 
 ## Votemap
@@ -167,7 +169,7 @@ Players can vote to change to an specific map by using the votemap <mapname> com
 | EnabledInWarmup     | Enable/Disable votemap during warmup                                     | true          | false | true |
 | MinRounds           | Minimum rounds to enable votemap                                         | 0             |       |      |
 | MinPlayers          | Minimum amount of players to enable votemap                              |               |       |      |
-| HudMenu             | Whether to use HudMenu or just the chat one                              | true          | false | true |
+| HudMenu             | Whether to use HudMenu or just the chat one. 0 = Chat only, 1 = CenterHTML HUD, 2 = ScreenMenuHUD    | 1          | 0 | 2 |
 | IgnoreSpec          | Ignore spectators from vote count                                        | true          | false | true |
 
 
