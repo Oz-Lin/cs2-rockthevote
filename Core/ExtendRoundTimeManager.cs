@@ -120,7 +120,7 @@ namespace cs2_rockthevote
             }
             if (_veConfig.HudMenu == 2)
             {
-                var menu = CreateScreenVoteMenu();
+                var menu = CreateVoteScreenMenu();
                 MenuAPI.OpenSubMenu(_plugin!, player, menu);
             }
         }
