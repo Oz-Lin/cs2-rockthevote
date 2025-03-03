@@ -11,6 +11,9 @@ using System.Text;
 using Microsoft.Extensions.Logging;
 using static CounterStrikeSharp.API.Core.Listeners;
 using Timer = CounterStrikeSharp.API.Modules.Timers.Timer;
+using CS2ScreenMenuAPI;
+using CS2ScreenMenuAPI.Enums;
+using CS2ScreenMenuAPI.Internal;
 
 namespace cs2_rockthevote
 {
@@ -110,8 +113,16 @@ namespace cs2_rockthevote
 
         private void ShowVoteMenu(CCSPlayerController player)
         {
-            var menu = CreateVoteMenu();
-            MenuManager.OpenChatMenu(player, menu);
+            if (_veConfig.HudMenu == 1)
+            {
+                var menu = CreateVoteMenu();
+                MenuManager.OpenChatMenu(player, menu);
+            }
+            if (_veConfig.HudMenu == 2)
+            {
+                var menu = CreateScreenVoteMenu();
+                MenuAPI.OpenSubMenu(_plugin!, player, menu);
+            }
         }
 
         private ChatMenu CreateVoteMenu()
@@ -127,6 +138,29 @@ namespace cs2_rockthevote
                 {
                     ExtendTimeVoted(player, answer);
                     MenuManager.CloseActiveMenu(player);
+                });
+            }
+
+            return menu;
+        }
+
+        private ScreenMenu CreateVoteScreenMenu()
+        {
+            ScreenMenu menu = new ScreenMenu(_localizer.Localize("extendtime.hud.menu-title"), _plugin!)
+            {
+                PostSelectAction = CS2ScreenMenuAPI.Enums.PostSelectAction.Close,
+                IsSubMenu = false,
+            };
+
+            var answers = new List<string>() { "Yes", "No" };
+
+            foreach (var answer in answers)
+            {
+                Votes[answer] = 0;
+                menu.AddOption(answer, (player, option) =>
+                {
+                    ExtendTimeVoted(player, answer);
+                    //MenuManager.CloseActiveMenu(player);
                 });
             }
 
@@ -248,10 +282,18 @@ namespace cs2_rockthevote
 
             _canVote = ServerManager.ValidPlayerCount();
 
-            var menu = CreateVoteMenu();
-
-            foreach (var player in ServerManager.ValidPlayers())
-                MenuManager.OpenChatMenu(player, menu);
+            if (_veConfig.HudMenu == 1)
+            {
+                var menu = CreateVoteMenu();
+                foreach (var player in ServerManager.ValidPlayers())
+                    MenuManager.OpenChatMenu(player, menu);
+            }
+            if (_veConfig.HudMenu == 2)
+            {
+                var menu = CreateVoteScreenMenu();
+                foreach (var player in ServerManager.ValidPlayers())
+                    MenuAPI.OpenSubMenu(_plugin!, player, menu);
+            }
 
             timeLeft = _config.VoteDuration;
             Timer = _plugin!.AddTimer(1.0F, () =>
@@ -259,6 +301,12 @@ namespace cs2_rockthevote
                 if (timeLeft <= 0)
                 {
                     ExtendTimeVote();
+                    if (_veConfig.HudMenu == 2)
+                    {
+                        foreach (var player in Utilities.GetPlayers())
+                            if (player != null)
+                                MenuAPI.CloseActiveMenu(player);
+                    }
                 }
                 else
                     timeLeft--;
