@@ -150,7 +150,7 @@ namespace cs2_rockthevote
             if (_eomConfig!.HudMenu == 2)
             {
                 var menu = CreateMapVoteScreenMenu();
-                MenuAPI.OpenMenu(_plugin!, player!, menu);
+                MenuAPI.OpenMenu(_plugin, player, menu);
 
             }
 
@@ -395,7 +395,7 @@ namespace cs2_rockthevote
             {
                 var menu = CreateMapVoteScreenMenu();
                 foreach (var player in ServerManager.ValidPlayers())
-                    MenuAPI.OpenMenu(_plugin!, player!, menu);
+                    MenuAPI.OpenMenu(_plugin, player, menu);
             }
             timeLeft = _config.VoteDuration;
             Timer = _plugin!.AddTimer(1.0F, () =>

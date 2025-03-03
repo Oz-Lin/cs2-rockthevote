@@ -98,7 +98,7 @@ namespace cs2_rockthevote
 
             if (_config.HudMenu == 2)
             {
-                nominationScreenMenu = new ScreenMenu("Nomination", _plugin!) // Creating the menu
+                nominationScreenMenu = new ScreenMenu("Nomination", _plugin) // Creating the menu
                 {
                     PostSelectAction = CS2ScreenMenuAPI.Enums.PostSelectAction.Nothing,
                     IsSubMenu = false, // this is not a sub menu
@@ -162,8 +162,8 @@ namespace cs2_rockthevote
 
         public void OpenNominationMenu(CCSPlayerController player)
         {
-            if (_config.HudMenu == 1) MenuManager.OpenChatMenu(player!, nominationMenu!);
-            if (_config.HudMenu == 2) MenuAPI.OpenMenu(_plugin!, player!, nominationScreenMenu!);
+            if (_config.HudMenu == 1) MenuManager.OpenChatMenu(player, nominationMenu!);
+            if (_config.HudMenu == 2) MenuAPI.OpenMenu(_plugin, player, nominationScreenMenu!);
         }
 
         void Nominate(CCSPlayerController player, string map)
