@@ -43,14 +43,14 @@ namespace cs2_rockthevote
     {
         Dictionary<int, (string PlayerName, List<string> Maps)> Nominations = new();
         ChatMenu? nominationMenu = null;
+        ScreenMenu? nominationScreenMenu = null;
         private RtvConfig _config = new();
         private GameRules _gamerules;
         private StringLocalizer _localizer;
         private PluginState _pluginState;
         private MapCooldown _mapCooldown;
         private MapLister _mapLister;
-        private Plugin _plugin;
-        ScreenMenu YDSHOWMENU = null;
+        private Plugin? _plugin;
         public Dictionary<int, (string PlayerName, List<string> Maps)> Nomlist => Nominations;
 
         public NominationCommand(MapLister mapLister, GameRules gamerules, StringLocalizer localizer, PluginState pluginState, MapCooldown mapCooldown)
@@ -79,24 +79,49 @@ namespace cs2_rockthevote
 
         public void OnMapsLoaded(object? sender, Map[] maps)
         {
-
-            YDSHOWMENU = new ScreenMenu("Nomination", _plugin) // Creating the menu
+            if (_config.HudMenu == 1)
             {
-                PostSelectAction = CS2ScreenMenuAPI.Enums.PostSelectAction.Nothing,
-                IsSubMenu = false, // this is not a sub menu
-                TextColor = Color.DarkOrange, // if this not set it will be the API default color
-                FontName = "Impact",
-                //MenuType = MenuType.KeyPress// IF you wanna use both types you don't need to add this since default value is using Both Types.
-            };
-
-            foreach (var map in _mapLister.Maps!.Where(x => x.Name != Server.MapName))
-            {
-                YDSHOWMENU.AddOption(map.Name, (p, option) =>
+                nominationMenu = new("Nomination");
+                foreach (var map in _mapLister.Maps!.Where(x => x.Name != Server.MapName))
                 {
-                    Nominate(p, option.Text);
-                    MenuAPI.CloseActiveMenu(p);
-                }, _mapCooldown.IsMapInCooldown(map.Name));
+                    nominationMenu.AddMenuOption(map.Name, (CCSPlayerController player, ChatMenuOption option) =>
+                    {
+                        Nominate(player, option.Text);
+                        MenuManager.CloseActiveMenu(player);
+                    }, _mapCooldown.IsMapInCooldown(map.Name));
+                }
+            }
 
+            if (_config.HudMenu == 2)
+            {
+                nominationScreenMenu = new ScreenMenu("Nomination", _plugin!) // Creating the menu
+                {
+                    PostSelectAction = CS2ScreenMenuAPI.Enums.PostSelectAction.Nothing,
+                    IsSubMenu = false, // this is not a sub menu
+                    //TextColor = Color.DarkOrange, // if this not set it will be the API default color
+                    //FontName = "Impact",
+                    //MenuType = MenuType.KeyPress// IF you wanna use both types you don't need to add this since default value is using Both Types.
+                };
+            }
+
+            if (_config.HudMenu == 2)
+            {
+                foreach (var map in _mapLister.Maps!.Where(x => x.Name != Server.MapName))
+                {
+                    nominationScreenMenu.AddOption(map.Name, (p, option) =>
+                    {
+                        Nominate(p, option.Text);
+                        MenuAPI.CloseActiveMenu(p);
+                    }, _mapCooldown.IsMapInCooldown(map.Name));
+                }
+            }
+
+            if (_config.HudMenu == 1)
+            {
+                nominationMenu.AddMenuOption("Exit", (CCSPlayerController player, ChatMenuOption option) =>
+                {
+                    MenuManager.CloseActiveMenu(player);
+                });
             }
         }
 
@@ -144,8 +169,8 @@ namespace cs2_rockthevote
 
         public void OpenNominationMenu(CCSPlayerController player)
         {
-            // MenuManager.OpenChatMenu(player!, nominationMenu!);
-            MenuAPI.OpenMenu(_plugin, player!, YDSHOWMENU);
+            if (_config.HudMenu == 1) MenuManager.OpenChatMenu(player!, nominationMenu!);
+            if (_config.HudMenu == 2) MenuAPI.OpenMenu(_plugin!, player!, nominationScreenMenu!);
         }
 
         void Nominate(CCSPlayerController player, string map)
@@ -188,8 +213,8 @@ namespace cs2_rockthevote
                 player.PrintToChat(_localizer.LocalizeWithPrefix("nominate.already-nominated", matchingMap,
                     totalVotes));
             }
-            // MenuManager.CloseActiveMenu(player);
-            MenuAPI.CloseActiveMenu(player);
+            if (_config.HudMenu == 1) MenuManager.CloseActiveMenu(player);
+            if (_config.HudMenu == 2) MenuAPI.CloseActiveMenu(player);
         }
 
         public List<string> NominationWinners()
