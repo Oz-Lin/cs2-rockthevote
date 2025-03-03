@@ -22,7 +22,7 @@ namespace cs2_rockthevote
     {
         public override string ModuleName => "RockTheVote";
         public override string ModuleVersion => "1.9.5";
-        public override string ModuleAuthor => "abnerfs, Oz-Lin, [ZeRo]XiaoLinWuDi";
+        public override string ModuleAuthor => "abnerfs, Oz-Lin, [ZeRo]XiaoLinWuDi, theextr1m";
         public override string ModuleDescription => "https://github.com/oz-lin/cs2-rockthevote";
 
         private readonly DependencyManager<Plugin, Config> _dependencyManager;

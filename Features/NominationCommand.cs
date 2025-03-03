@@ -1,5 +1,4 @@
-﻿
-using CounterStrikeSharp.API;
+﻿using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
 using CounterStrikeSharp.API.Modules.Commands;
@@ -90,6 +89,11 @@ namespace cs2_rockthevote
                         MenuManager.CloseActiveMenu(player);
                     }, _mapCooldown.IsMapInCooldown(map.Name));
                 }
+
+                nominationMenu.AddMenuOption("Exit", (CCSPlayerController player, ChatMenuOption option) =>
+                {
+                    MenuManager.CloseActiveMenu(player);
+                });
             }
 
             if (_config.HudMenu == 2)
@@ -102,10 +106,7 @@ namespace cs2_rockthevote
                     //FontName = "Impact",
                     //MenuType = MenuType.KeyPress// IF you wanna use both types you don't need to add this since default value is using Both Types.
                 };
-            }
 
-            if (_config.HudMenu == 2)
-            {
                 foreach (var map in _mapLister.Maps!.Where(x => x.Name != Server.MapName))
                 {
                     nominationScreenMenu.AddOption(map.Name, (p, option) =>
@@ -114,14 +115,6 @@ namespace cs2_rockthevote
                         MenuAPI.CloseActiveMenu(p);
                     }, _mapCooldown.IsMapInCooldown(map.Name));
                 }
-            }
-
-            if (_config.HudMenu == 1)
-            {
-                nominationMenu.AddMenuOption("Exit", (CCSPlayerController player, ChatMenuOption option) =>
-                {
-                    MenuManager.CloseActiveMenu(player);
-                });
             }
         }
 
