@@ -150,21 +150,20 @@ namespace cs2_rockthevote
         {
             if (_eomConfig!.HudMenu == 1)
             {
-                var menu = CreateMapVoteMenu();
-                MenuManager.OpenChatMenu(player, menu);
+                var cMenu = CreateMapVoteMenu();
+                MenuManager.OpenChatMenu(player, cMenu);
             }
             if (_eomConfig!.HudMenu == 2)
             {
-                var menu = CreateMapVoteScreenMenu();
-                MenuAPI.OpenMenu(_plugin, player, menu);
-
+                var sMenu = CreateMapVoteScreenMenu();
+                MenuAPI.OpenMenu(_plugin, player, sMenu);
             }
 
         }
 
         private ChatMenu CreateMapVoteMenu()
         {
-            ChatMenu menu = new(_localizer.Localize("emv.hud.menu-title"));
+            ChatMenu cMenu = new(_localizer.Localize("emv.hud.menu-title"));
 
             if (_eomConfig != null && _eomConfig.AllowExtend && (_eomConfig.ExtendLimit > 0 || _eomConfig.ExtendLimit == -1))
             {
@@ -172,7 +171,7 @@ namespace cs2_rockthevote
                 {
                     Votes[_localizer.Localize("general.extend-current-map")] = 0;
                 }
-                menu.AddMenuOption(_localizer.Localize("general.extend-current-map"), (player, option) =>
+                cMenu.AddMenuOption(_localizer.Localize("general.extend-current-map"), (player, option) =>
                 {
                     MapVoted(player, _localizer.Localize("general.extend-current-map"));
                     MenuManager.CloseActiveMenu(player);
@@ -186,21 +185,21 @@ namespace cs2_rockthevote
                 {
                     Votes[map] = 0;
                 }
-                menu.AddMenuOption(map, (player, option) =>
+                cMenu.AddMenuOption(map, (player, option) =>
                 {
                     MapVoted(player, map);
                     MenuManager.CloseActiveMenu(player);
                 });
             }
 
-            return menu;
+            return cMenu;
         }
 
         private ScreenMenu CreateMapVoteScreenMenu()
         {
-            ScreenMenu menu = new ScreenMenu(_localizer.Localize("emv.hud.menu-title"), _plugin!) // Creating the menu
+            ScreenMenu sMenu = new ScreenMenu(_localizer.Localize("emv.hud.menu-title"), _plugin!) // Creating the menu
             {
-                PostSelectAction = CS2ScreenMenuAPI.Enums.PostSelectAction.Nothing,
+                PostSelectAction = CS2ScreenMenuAPI.Enums.PostSelectAction.Close,
                 IsSubMenu = false, // this is not a sub menu
                 //TextColor = Color.DarkOrange, // if this not set it will be the API default color
                 //FontName = "Impact",
@@ -209,7 +208,7 @@ namespace cs2_rockthevote
             if (_eomConfig != null && _eomConfig.AllowExtend && (_eomConfig.ExtendLimit > 0 || _eomConfig.ExtendLimit == -1))
             {
                 Votes[_localizer.Localize("general.extend-current-map")] = 0;
-                menu.AddOption(_localizer.Localize("general.extend-current-map"), (player, option) =>
+                sMenu.AddOption(_localizer.Localize("general.extend-current-map"), (player, option) =>
                 {
                     MapVoted(player, _localizer.Localize("general.extend-current-map"));
                     // MenuManager.CloseActiveMenu(player);
@@ -218,13 +217,13 @@ namespace cs2_rockthevote
             foreach (var map in mapsEllected.Take((_eomConfig != null && _eomConfig.AllowExtend && (_eomConfig.ExtendLimit > 0 || _eomConfig.ExtendLimit == -1)) ? (MAX_OPTIONS_HUD_MENU - 1) : MAX_OPTIONS_HUD_MENU))
             {
                 Votes[map] = 0;
-                menu.AddOption(map, (player, option) =>
+                sMenu.AddOption(map, (player, option) =>
                 {
                     MapVoted(player, map);
                     // MenuManager.CloseActiveMenu(player);
                 });
             }
-            return menu;
+            return sMenu;
         }
 
 
@@ -264,7 +263,7 @@ namespace cs2_rockthevote
             int index = 1;
             StringBuilder stringBuilder = new();
             stringBuilder.AppendFormat($"<b>{_localizer.Localize("emv.hud.hud-timer", timeLeft)}</b>");
-            if (_config!.HudMenu == 1)
+            if (_config!.HudMenu >= 1)
                 foreach (var kv in Votes.OrderByDescending(x => x.Value).Take(MAX_OPTIONS_HUD_MENU).Where(x => x.Value > 0))
                 {
                     stringBuilder.AppendFormat($"<br>{kv.Key} <font color='green'>({kv.Value})</font>");
@@ -387,7 +386,7 @@ namespace cs2_rockthevote
             _pluginState.EofVoteHappening = true;
             _config = config;
             int mapsToShow = _config!.MapsToShow == 0 ? MAX_OPTIONS_HUD_MENU : _config!.MapsToShow;
-            if (config.HudMenu == 1 && mapsToShow > MAX_OPTIONS_HUD_MENU)
+            if (config.HudMenu >= 1 && mapsToShow > MAX_OPTIONS_HUD_MENU)
                 mapsToShow = MAX_OPTIONS_HUD_MENU;
 
             var mapsScrambled = Shuffle(new Random(),

@@ -78,7 +78,7 @@ namespace cs2_rockthevote
 
         public void OnMapsLoaded(object? sender, Map[] maps)
         {
-            if (_config.HudMenu == 1)
+            if (_config.HudMenu >= 1)
             {
                 nominationMenu = new("Nomination");
                 foreach (var map in _mapLister.Maps!.Where(x => x.Name != Server.MapName))
@@ -162,7 +162,8 @@ namespace cs2_rockthevote
 
         public void OpenNominationMenu(CCSPlayerController player)
         {
-            if (_config.HudMenu == 1) MenuManager.OpenChatMenu(player, nominationMenu!);
+            if (_config.HudMenu >= 1) MenuManager.OpenChatMenu(player, nominationMenu!);
+            // trying to debug why screen menu broken in nomination
             if (_config.HudMenu == 2) MenuAPI.OpenMenu(_plugin, player, nominationScreenMenu!);
         }
 
@@ -206,7 +207,7 @@ namespace cs2_rockthevote
                 player.PrintToChat(_localizer.LocalizeWithPrefix("nominate.already-nominated", matchingMap,
                     totalVotes));
             }
-            if (_config.HudMenu == 1) MenuManager.CloseActiveMenu(player);
+            if (_config.HudMenu >= 1) MenuManager.CloseActiveMenu(player);
             if (_config.HudMenu == 2) MenuAPI.CloseActiveMenu(player);
         }
 

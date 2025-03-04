@@ -292,15 +292,15 @@ namespace cs2_rockthevote
 
             if (_veConfig.HudMenu == 1)
             {
-                var menu = CreateVoteMenu();
+                var cMenu = CreateVoteMenu();
                 foreach (var player in ServerManager.ValidPlayers())
-                    MenuManager.OpenChatMenu(player, menu);
+                    MenuManager.OpenChatMenu(player, cMenu);
             }
             if (_veConfig.HudMenu == 2)
             {
-                var menu = CreateVoteScreenMenu();
+                var sMenu = CreateVoteScreenMenu();
                 foreach (var player in ServerManager.ValidPlayers())
-                    MenuAPI.OpenSubMenu(_plugin, player, menu);
+                    MenuAPI.OpenSubMenu(_plugin, player, sMenu);
             }
 
             timeLeft = _config.VoteDuration;

@@ -136,26 +136,23 @@ namespace cs2_rockthevote
 
         public void OpenVotemapMenu(CCSPlayerController player)
         {
-            switch (_config.HudMenu)
+            if (_config.HudMenu == 2)
             {
-                case 2:
-                    var screenMenu = CreateScreenMenu();
-                    MenuAPI.OpenMenu(_plugin!, player, screenMenu);
-                    break;
-                case 1:
-                    MenuManager.OpenCenterHtmlMenu(_plugin!, player, votemapMenuHud!);
-                    break;
-                case 0:
-                    MenuManager.OpenChatMenu(player, votemapMenu!);
-                    break;
+                var screenMenu = CreateScreenMenu();
+                MenuAPI.OpenMenu(_plugin!, player, screenMenu);
             }
+            // trying to debug why screenmenu broken
+            if (_config.HudMenu >= 1)
+                MenuManager.OpenCenterHtmlMenu(_plugin!, player, votemapMenuHud!);
+            if (_config.HudMenu == 0)
+                MenuManager.OpenChatMenu(player, votemapMenu!);
         }
 
         private ScreenMenu CreateScreenMenu()
         {
             var screenMenu = new ScreenMenu(_localizer.Localize("votemap.menu-title"), _plugin!)
             {
-                PostSelectAction = CS2ScreenMenuAPI.Enums.PostSelectAction.Nothing,
+                PostSelectAction = CS2ScreenMenuAPI.Enums.PostSelectAction.Close,
                 IsSubMenu = false,
                // TextColor = Color.DarkOrange,
                // FontName = "Impact"
