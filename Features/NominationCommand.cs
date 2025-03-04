@@ -98,9 +98,9 @@ namespace cs2_rockthevote
 
             if (_config.HudMenu == 2)
             {
-                nominationScreenMenu = new ScreenMenu("Nomination", _plugin) // Creating the menu
+                nominationScreenMenu = new ScreenMenu("Nomination", _plugin!) // Creating the menu
                 {
-                    PostSelectAction = CS2ScreenMenuAPI.Enums.PostSelectAction.Nothing,
+                    PostSelectAction = CS2ScreenMenuAPI.Enums.PostSelectAction.Close,
                     IsSubMenu = false, // this is not a sub menu
                     //TextColor = Color.DarkOrange, // if this not set it will be the API default color
                     //FontName = "Impact",
@@ -112,7 +112,7 @@ namespace cs2_rockthevote
                     nominationScreenMenu.AddOption(map.Name, (p, option) =>
                     {
                         Nominate(p, option.Text);
-                        MenuAPI.CloseActiveMenu(p);
+                        //MenuAPI.CloseActiveMenu(p);
                     }, _mapCooldown.IsMapInCooldown(map.Name));
                 }
             }

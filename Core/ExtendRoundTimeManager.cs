@@ -204,7 +204,7 @@ namespace cs2_rockthevote
             int index = 1;
             StringBuilder stringBuilder = new();
             stringBuilder.AppendFormat($"<b>{_localizer.Localize("extendtime.hud.hud-timer", timeLeft)}</b>");
-            if (_config!.HudMenu == 1)
+            if (_config!.HudMenu >= 1)
                 foreach (var kv in Votes.OrderByDescending(x => x.Value).Take(MAX_OPTIONS_HUD_MENU).Where(x => x.Value > 0))
                 {
                     stringBuilder.AppendFormat($"<br>{kv.Key} <font color='green'>({kv.Value})</font>");
