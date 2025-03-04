@@ -78,24 +78,6 @@ namespace cs2_rockthevote
 
         public void OnMapsLoaded(object? sender, Map[] maps)
         {
-            if (_config.HudMenu >= 1)
-            {
-                nominationMenu = new("Nomination");
-                foreach (var map in _mapLister.Maps!.Where(x => x.Name != Server.MapName))
-                {
-                    nominationMenu.AddMenuOption(map.Name, (CCSPlayerController player, ChatMenuOption option) =>
-                    {
-                        Nominate(player, option.Text);
-                        MenuManager.CloseActiveMenu(player);
-                    }, _mapCooldown.IsMapInCooldown(map.Name));
-                }
-
-                nominationMenu.AddMenuOption("Exit", (CCSPlayerController player, ChatMenuOption option) =>
-                {
-                    MenuManager.CloseActiveMenu(player);
-                });
-            }
-
             if (_config.HudMenu == 2)
             {
                 nominationScreenMenu = new ScreenMenu("Nomination", _plugin!) // Creating the menu
@@ -115,6 +97,24 @@ namespace cs2_rockthevote
                         //MenuAPI.CloseActiveMenu(p);
                     }, _mapCooldown.IsMapInCooldown(map.Name));
                 }
+            }
+            // fall back to chat menu if screen menu broken
+            if (_config.HudMenu >= 1)
+            {
+                nominationMenu = new("Nomination");
+                foreach (var map in _mapLister.Maps!.Where(x => x.Name != Server.MapName))
+                {
+                    nominationMenu.AddMenuOption(map.Name, (CCSPlayerController player, ChatMenuOption option) =>
+                    {
+                        Nominate(player, option.Text);
+                        MenuManager.CloseActiveMenu(player);
+                    }, _mapCooldown.IsMapInCooldown(map.Name));
+                }
+
+                nominationMenu.AddMenuOption("Exit", (CCSPlayerController player, ChatMenuOption option) =>
+                {
+                    MenuManager.CloseActiveMenu(player);
+                });
             }
         }
 
@@ -162,9 +162,9 @@ namespace cs2_rockthevote
 
         public void OpenNominationMenu(CCSPlayerController player)
         {
+            if (_config.HudMenu == 2) MenuAPI.OpenMenu(_plugin, player, nominationScreenMenu!);
             if (_config.HudMenu >= 1) MenuManager.OpenChatMenu(player, nominationMenu!);
             // trying to debug why screen menu broken in nomination
-            if (_config.HudMenu == 2) MenuAPI.OpenMenu(_plugin, player, nominationScreenMenu!);
         }
 
         void Nominate(CCSPlayerController player, string map)
@@ -207,8 +207,8 @@ namespace cs2_rockthevote
                 player.PrintToChat(_localizer.LocalizeWithPrefix("nominate.already-nominated", matchingMap,
                     totalVotes));
             }
-            if (_config.HudMenu >= 1) MenuManager.CloseActiveMenu(player);
             if (_config.HudMenu == 2) MenuAPI.CloseActiveMenu(player);
+            if (_config.HudMenu >= 1) MenuManager.CloseActiveMenu(player);
         }
 
         public List<string> NominationWinners()

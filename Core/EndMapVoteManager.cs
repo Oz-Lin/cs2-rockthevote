@@ -148,17 +148,16 @@ namespace cs2_rockthevote
 
         private void ShowMapVoteMenu(CCSPlayerController player)
         {
-            if (_eomConfig!.HudMenu == 1)
-            {
-                var cMenu = CreateMapVoteMenu();
-                MenuManager.OpenChatMenu(player, cMenu);
-            }
             if (_eomConfig!.HudMenu == 2)
             {
                 var sMenu = CreateMapVoteScreenMenu();
                 MenuAPI.OpenMenu(_plugin, player, sMenu);
             }
-
+            if (_eomConfig!.HudMenu == 1)
+            {
+                var cMenu = CreateMapVoteMenu();
+                MenuManager.OpenChatMenu(player, cMenu);
+            }
         }
 
         private ChatMenu CreateMapVoteMenu()
@@ -263,12 +262,12 @@ namespace cs2_rockthevote
             int index = 1;
             StringBuilder stringBuilder = new();
             stringBuilder.AppendFormat($"<b>{_localizer.Localize("emv.hud.hud-timer", timeLeft)}</b>");
-            if (_config!.HudMenu >= 1)
+            if (_config!.HudMenu == 0)
                 foreach (var kv in Votes.OrderByDescending(x => x.Value).Take(MAX_OPTIONS_HUD_MENU).Where(x => x.Value > 0))
                 {
                     stringBuilder.AppendFormat($"<br>{kv.Key} <font color='green'>({kv.Value})</font>");
                 }
-            if (_config!.HudMenu == 0)
+            if (_config!.HudMenu > 0)
                 foreach (var kv in Votes.Take(MAX_OPTIONS_HUD_MENU))
                 {
                     stringBuilder.AppendFormat($"<br><font color='yellow'>!{index++}</font> {kv.Key} <font color='green'>({kv.Value})</font>");
@@ -395,19 +394,20 @@ namespace cs2_rockthevote
             mapsEllected = _nominationManager.NominationWinners().Concat(mapsScrambled).Distinct().ToList();
 
             _canVote = ServerManager.ValidPlayerCount();
-
-            if (_eomConfig!.HudMenu == 1)
-            {
-                var menu = CreateMapVoteMenu();
-                foreach (var player in ServerManager.ValidPlayers())
-                    MenuManager.OpenChatMenu(player!, menu);
-            }
+            
             if (_eomConfig!.HudMenu == 2)
             {
                 var menu = CreateMapVoteScreenMenu();
                 foreach (var player in ServerManager.ValidPlayers())
                     MenuAPI.OpenMenu(_plugin, player, menu);
             }
+            if (_eomConfig!.HudMenu == 0 || _eomConfig!.HudMenu == 1)
+            {
+                var menu = CreateMapVoteMenu();
+                foreach (var player in ServerManager.ValidPlayers())
+                    MenuManager.OpenChatMenu(player!, menu);
+            }
+
             timeLeft = _config.VoteDuration;
             Timer = _plugin!.AddTimer(1.0F, () =>
             {

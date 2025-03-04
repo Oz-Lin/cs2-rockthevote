@@ -118,15 +118,15 @@ namespace cs2_rockthevote
 
         private void ShowVoteMenu(CCSPlayerController player)
         {
-            if (_veConfig.HudMenu == 1)
-            {
-                var menu = CreateVoteMenu();
-                MenuManager.OpenChatMenu(player, menu);
-            }
             if (_veConfig.HudMenu == 2)
             {
                 var menu = CreateVoteScreenMenu();
                 MenuAPI.OpenSubMenu(_plugin, player, menu);
+            }
+            if (_veConfig.HudMenu == 1)
+            {
+                var menu = CreateVoteMenu();
+                MenuManager.OpenChatMenu(player, menu);
             }
         }
 
@@ -204,12 +204,12 @@ namespace cs2_rockthevote
             int index = 1;
             StringBuilder stringBuilder = new();
             stringBuilder.AppendFormat($"<b>{_localizer.Localize("extendtime.hud.hud-timer", timeLeft)}</b>");
-            if (_config!.HudMenu >= 1)
+            if (_config!.HudMenu == 0)
                 foreach (var kv in Votes.OrderByDescending(x => x.Value).Take(MAX_OPTIONS_HUD_MENU).Where(x => x.Value > 0))
                 {
                     stringBuilder.AppendFormat($"<br>{kv.Key} <font color='green'>({kv.Value})</font>");
                 }
-            if (_config!.HudMenu == 0)
+            if (_config!.HudMenu > 0)
                 foreach (var kv in Votes.Take(MAX_OPTIONS_HUD_MENU))
                 {
                     stringBuilder.AppendFormat($"<br><font color='yellow'>!{index++}</font> {kv.Key} <font color='green'>({kv.Value})</font>");
@@ -289,18 +289,18 @@ namespace cs2_rockthevote
             _config = config ?? throw new ArgumentNullException(nameof(config));
 
             _canVote = ServerManager.ValidPlayerCount();
-
-            if (_veConfig.HudMenu == 1)
-            {
-                var cMenu = CreateVoteMenu();
-                foreach (var player in ServerManager.ValidPlayers())
-                    MenuManager.OpenChatMenu(player, cMenu);
-            }
+            
             if (_veConfig.HudMenu == 2)
             {
                 var sMenu = CreateVoteScreenMenu();
                 foreach (var player in ServerManager.ValidPlayers())
                     MenuAPI.OpenSubMenu(_plugin, player, sMenu);
+            }
+            if (_veConfig.HudMenu == 1)
+            {
+                var cMenu = CreateVoteMenu();
+                foreach (var player in ServerManager.ValidPlayers())
+                    MenuManager.OpenChatMenu(player, cMenu);
             }
 
             timeLeft = _config.VoteDuration;
