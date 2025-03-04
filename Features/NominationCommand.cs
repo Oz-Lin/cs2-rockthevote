@@ -93,7 +93,7 @@ namespace cs2_rockthevote
                 {
                     nominationScreenMenu.AddOption(map.Name, (p, option) =>
                     {
-                        Nominate(p, option.Text);
+                        Nominate(p, map.Name);
                         //MenuAPI.CloseActiveMenu(p);
                     }, _mapCooldown.IsMapInCooldown(map.Name));
                 }
@@ -162,7 +162,7 @@ namespace cs2_rockthevote
 
         public void OpenNominationMenu(CCSPlayerController player)
         {
-            if (_config.HudMenu == 2) MenuAPI.OpenMenu(_plugin, player, nominationScreenMenu!);
+            if (_config.HudMenu == 2) MenuAPI.OpenMenu(_plugin!, player, nominationScreenMenu!);
             if (_config.HudMenu >= 1) MenuManager.OpenChatMenu(player, nominationMenu!);
             // trying to debug why screen menu broken in nomination
         }

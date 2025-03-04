@@ -121,7 +121,7 @@ namespace cs2_rockthevote
             if (_veConfig.HudMenu == 2)
             {
                 var menu = CreateVoteScreenMenu();
-                MenuAPI.OpenSubMenu(_plugin, player, menu);
+                MenuAPI.OpenSubMenu(_plugin!, player, menu);
             }
             if (_veConfig.HudMenu == 1)
             {
@@ -154,7 +154,7 @@ namespace cs2_rockthevote
 
         private ScreenMenu CreateVoteScreenMenu()
         {
-            ScreenMenu menu = new ScreenMenu(_localizer.Localize("extendtime.hud.menu-title"), _plugin)
+            ScreenMenu menu = new ScreenMenu(_localizer.Localize("extendtime.hud.menu-title"), _plugin!)
             {
                 PostSelectAction = CS2ScreenMenuAPI.Enums.PostSelectAction.Close,
                 IsSubMenu = false,
@@ -294,7 +294,7 @@ namespace cs2_rockthevote
             {
                 var sMenu = CreateVoteScreenMenu();
                 foreach (var player in ServerManager.ValidPlayers())
-                    MenuAPI.OpenSubMenu(_plugin, player, sMenu);
+                    MenuAPI.OpenSubMenu(_plugin!, player, sMenu);
             }
             if (_veConfig.HudMenu == 1)
             {

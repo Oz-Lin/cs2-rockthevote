@@ -9,6 +9,7 @@ using Microsoft.Extensions.Localization;
 using CS2ScreenMenuAPI;
 using CS2ScreenMenuAPI.Enums;
 using CS2ScreenMenuAPI.Internal;
+using CS2ScreenMenuAPI.Interfaces;
 
 namespace cs2_rockthevote
 {
@@ -38,6 +39,7 @@ namespace cs2_rockthevote
         Dictionary<string, AsyncVoteManager> VotedMaps = new();
         ChatMenu? votemapMenu = null;
         CenterHtmlMenu? votemapMenuHud = null;
+        ScreenMenu? votemapScreenMenuHud = null;
         private VotemapConfig _config = new();
         private GameRules _gamerules;
         private StringLocalizer _localizer;
@@ -74,6 +76,11 @@ namespace cs2_rockthevote
 #pragma warning disable CS0618 // Type or member is obsolete
             votemapMenuHud = new("VoteMap");
 #pragma warning restore CS0618 // Type or member is obsolete
+            votemapScreenMenuHud = new ScreenMenu("Votemap", _plugin!)
+            {
+                PostSelectAction = CS2ScreenMenuAPI.Enums.PostSelectAction.Close,
+                IsSubMenu = false,
+            };
             foreach (var map in _mapLister.Maps!.Where(x => x.Name != Server.MapName))
             {
                 votemapMenu.AddMenuOption(map.Name, (CCSPlayerController player, ChatMenuOption option) =>
@@ -89,7 +96,16 @@ namespace cs2_rockthevote
                 {
                     AddVote(player, option.Text);
                 }, _mapCooldown.IsMapInCooldown(map.Name));
+                
+                votemapScreenMenuHud.AddOption(map.Name, (player, option) =>
+                {
+                    AddVote(player, map.Name);
+                    //MenuAPI.CloseActiveMenu(player);
+                }, _mapCooldown.IsMapInCooldown(map.Name));
             }
+
+
+          
         }
 
         public void CommandHandler(CCSPlayerController? player, string map)
@@ -137,43 +153,39 @@ namespace cs2_rockthevote
         public void OpenVotemapMenu(CCSPlayerController player)
         {
             if (_config.HudMenu == 2)
-            {
-                var screenMenu = CreateScreenMenu();
-                MenuAPI.OpenMenu(_plugin!, player, screenMenu);
-            }
-            // trying to debug why screenmenu broken
-            if (_config.HudMenu >= 1)
+                MenuAPI.OpenMenu(_plugin!, player, votemapScreenMenuHud!);
+            if (_config.HudMenu == 1)
                 MenuManager.OpenCenterHtmlMenu(_plugin!, player, votemapMenuHud!);
             if (_config.HudMenu == 0)
                 MenuManager.OpenChatMenu(player, votemapMenu!);
         }
 
-        private ScreenMenu CreateScreenMenu()
-        {
-            var screenMenu = new ScreenMenu(_localizer.Localize("votemap.menu-title"), _plugin!)
-            {
-                PostSelectAction = CS2ScreenMenuAPI.Enums.PostSelectAction.Close,
-                IsSubMenu = false,
-               // TextColor = Color.DarkOrange,
-               // FontName = "Impact"
-            };
+        //private ScreenMenu CreateScreenMenu()
+        //{
+        //    var screenMenu = new ScreenMenu(_localizer.Localize("votemap.menu-title"), _plugin!)
+        //    {
+        //        PostSelectAction = CS2ScreenMenuAPI.Enums.PostSelectAction.Close,
+        //        IsSubMenu = false,
+        //       // TextColor = Color.DarkOrange,
+        //       // FontName = "Impact"
+        //    };
 
-            foreach (var map in _mapLister.Maps!.Where(x => x.Name != Server.MapName))
-            {
-                screenMenu.AddOption(map.Name, (player, option) =>
-                {
-                    AddVote(player, option.Text);
-                    MenuAPI.CloseActiveMenu(player);
-                }, _mapCooldown.IsMapInCooldown(map.Name));
-            }
+        //    foreach (var map in _mapLister.Maps!.Where(x => x.Name != Server.MapName))
+        //    {
+        //        screenMenu.AddOption(map.Name, (player, option) =>
+        //        {
+        //            AddVote(player, option.Text);
+        //            MenuAPI.CloseActiveMenu(player);
+        //        }, _mapCooldown.IsMapInCooldown(map.Name));
+        //    }
 
-            screenMenu.AddOption("Exit", (player, option) =>
-            {
-                MenuAPI.CloseActiveMenu(player);
-            });
+        //    screenMenu.AddOption("Exit", (player, option) =>
+        //    {
+        //        MenuAPI.CloseActiveMenu(player);
+        //    });
 
-            return screenMenu;
-        }
+        //    return screenMenu;
+        //}
 
         void AddVote(CCSPlayerController player, string map)
         {
