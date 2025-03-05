@@ -11,16 +11,19 @@ using CS2ScreenMenuAPI.Enums;
 using CS2ScreenMenuAPI.Internal;
 using CS2ScreenMenuAPI.Interfaces;
 using Microsoft.Extensions.Logging;
+using CounterStrikeSharp.API.Modules.Memory;
+using CounterStrikeSharp.API.Modules.Utils;
 
 namespace cs2_rockthevote
 {
     public partial class Plugin
     {
-        [CommandHelper(whoCanExecute: CommandUsage.CLIENT_ONLY)]
+        //[CommandHelper(whoCanExecute: CommandUsage.CLIENT_ONLY)]
         [ConsoleCommand("votemap", "Vote to change to a map")]
         [ConsoleCommand("css_votemap", "Vote to change to a map")]
         public void OnVotemap(CCSPlayerController? player, CommandInfo command)
         {
+            if (player == null) return;
             string map = command.GetArg(1).Trim().ToLower();
             _votemapManager.CommandHandler(player!, map);
         }
@@ -42,7 +45,7 @@ namespace cs2_rockthevote
         Dictionary<string, AsyncVoteManager> VotedMaps = new();
         ChatMenu? votemapMenu = null;
         CenterHtmlMenu? votemapMenuHud = null;
-        ScreenMenu? votemapScreenMenuHud = null;
+        ScreenMenu? votemapScreenMenuHud;
         private VotemapConfig _config = new();
         private GameRules _gamerules;
         private StringLocalizer _localizer;
@@ -79,21 +82,14 @@ namespace cs2_rockthevote
 #pragma warning disable CS0618 // Type or member is obsolete
             votemapMenuHud = new("VoteMap");
 #pragma warning restore CS0618 // Type or member is obsolete
-            votemapScreenMenuHud = new ScreenMenu("Votemap", _plugin!)
-            {
-                PostSelectAction = CS2ScreenMenuAPI.Enums.PostSelectAction.Close,
-                IsSubMenu = false,
-            };
+            votemapScreenMenuHud = CreateVotemapScreenMenu();
+
             foreach (var map in _mapLister.Maps!.Where(x => x.Name != Server.MapName))
             {
                 votemapMenu.AddMenuOption(map.Name, (CCSPlayerController player, ChatMenuOption option) =>
                 {
                     AddVote(player, option.Text);
                 }, _mapCooldown.IsMapInCooldown(map.Name));
-                votemapMenu.AddMenuOption("Exit", (CCSPlayerController player, ChatMenuOption option) =>
-                {
-                    MenuManager.CloseActiveMenu(player);
-                });
 
                 votemapMenuHud.AddMenuOption(map.Name, (CCSPlayerController player, ChatMenuOption option) =>
                 {
@@ -103,9 +99,29 @@ namespace cs2_rockthevote
                 votemapScreenMenuHud.AddOption(map.Name, (player, option) =>
                 {
                     AddVote(player, map.Name);
-                    //MenuAPI.CloseActiveMenu(player);
+                    MenuAPI.CloseActiveMenu(player);
                 }, _mapCooldown.IsMapInCooldown(map.Name));
             }
+        }
+
+        private ScreenMenu CreateVotemapScreenMenu()
+        {
+            ScreenMenu screenMenu = new ScreenMenu("Votemap", _plugin!)
+            {
+                PostSelectAction = CS2ScreenMenuAPI.Enums.PostSelectAction.Nothing,
+                IsSubMenu = false,
+            };
+
+            foreach (var map in _mapLister.Maps!.Where(x => x.Name != Server.MapName))
+            {
+                screenMenu.AddOption(map.Name, (player, option) =>
+                {
+                    AddVote(player, map.Name);
+                    MenuAPI.CloseActiveMenu(player);
+                }, _mapCooldown.IsMapInCooldown(map.Name));
+            }
+
+            return screenMenu;
         }
 
         public void CommandHandler(CCSPlayerController? player, string map)
@@ -159,17 +175,19 @@ namespace cs2_rockthevote
                 return;
             }
 
-            // close prev menu
-            MenuAPI.CloseActiveMenu(player);
-
-            // logger
-            //_plugin!._logger.Log(LogLevel.Information, $"Opening nomination menu for player {player.PlayerName}");
-
             switch (_config.HudMenu)
             {
                 case 2:
-                    // close prev menu
-                    MenuAPI.CloseActiveMenu(player);
+                    // check view model status
+                    //CCSPlayerPawn pawn = player.PlayerPawn.Value!;
+                    //var handle = new CHandle<CCSGOViewModel>((IntPtr)(pawn.ViewModelServices!.Handle + Schema.GetSchemaOffset("CCSPlayer_ViewModelServices", "m_hViewModel") + 4));
+                    //if (!handle.IsValid)
+                    //{
+                    //    CCSGOViewModel viewmodel = Utilities.CreateEntityByName<CCSGOViewModel>("predicted_viewmodel")!;
+                    //    handle.Raw = viewmodel.EntityHandle.Raw;
+                    //    Utilities.SetStateChanged(pawn, "CCSPlayerPawnBase", "m_pViewModelServices");
+                    //}
+
                     MenuAPI.OpenMenu(_plugin!, player, votemapScreenMenuHud!);
                     break;
                 case 1:

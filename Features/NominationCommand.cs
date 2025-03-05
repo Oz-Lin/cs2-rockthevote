@@ -3,7 +3,9 @@ using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
 using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Entities;
+using CounterStrikeSharp.API.Modules.Memory;
 using CounterStrikeSharp.API.Modules.Menu;
+using CounterStrikeSharp.API.Modules.Utils;
 using cs2_rockthevote.Core;
 using CS2ScreenMenuAPI;
 using CS2ScreenMenuAPI.Enums;
@@ -16,15 +18,17 @@ namespace cs2_rockthevote
 {
     public partial class Plugin
     {
-        [CommandHelper(whoCanExecute: CommandUsage.CLIENT_ONLY)]
+        //[CommandHelper(whoCanExecute: CommandUsage.CLIENT_ONLY)]
         [ConsoleCommand("css_nominate", "nominate a map to rtv")]
         [ConsoleCommand("nominate", "nominate a map to rtv")]
         [ConsoleCommand("css_nom", "nominate a map to rtv")]
         [ConsoleCommand("nom", "nominate a map to rtv")]
         public void OnNominate(CCSPlayerController? player, CommandInfo command)
         {
+            if (player == null) return;
             string map = command.GetArg(1).Trim().ToLower();
             _nominationManager.CommandHandler(player!, map);
+
         }
 
         [GameEventHandler(HookMode.Pre)]
@@ -44,7 +48,7 @@ namespace cs2_rockthevote
     {
         Dictionary<int, (string PlayerName, List<string> Maps)> Nominations = new();
         ChatMenu? nominationMenu = null;
-        ScreenMenu? nominationScreenMenu = null;
+        ScreenMenu? nominationScreenMenu;
         private RtvConfig _config = new();
         private GameRules _gamerules;
         private StringLocalizer _localizer;
@@ -83,42 +87,46 @@ namespace cs2_rockthevote
         {
             if (_config.HudMenu == 2)
             {
-                nominationScreenMenu = new ScreenMenu("Nomination", _plugin!) // Creating the menu
-                {
-                    PostSelectAction = CS2ScreenMenuAPI.Enums.PostSelectAction.Close,
-                    IsSubMenu = false, // this is not a sub menu
-                                       //TextColor = Color.DarkOrange, // if this not set it will be the API default color
-                                       //FontName = "Impact",
-                                       //MenuType = MenuType.KeyPress// IF you wanna use both types you don't need to add this since default value is using Both Types.
-                };
-
-                foreach (var map in _mapLister.Maps!.Where(x => x.Name != Server.MapName))
-                {
-                    nominationScreenMenu.AddOption(map.Name, (p, option) =>
-                    {
-                        Nominate(p, map.Name);
-                        //MenuAPI.CloseActiveMenu(p);
-                    }, _mapCooldown.IsMapInCooldown(map.Name));
-                }
+                nominationScreenMenu = CreateNominationScreenMenu();
             }
 
-            if (_config.HudMenu == 1 || _config.HudMenu == 0)
+            nominationMenu = new("Nomination");
+            foreach (var map in _mapLister.Maps!.Where(x => x.Name != Server.MapName))
             {
-                nominationMenu = new("Nomination");
-                foreach (var map in _mapLister.Maps!.Where(x => x.Name != Server.MapName))
+                nominationMenu.AddMenuOption(map.Name, (CCSPlayerController player, ChatMenuOption option) =>
                 {
-                    nominationMenu.AddMenuOption(map.Name, (CCSPlayerController player, ChatMenuOption option) =>
-                    {
-                        Nominate(player, option.Text);
-                        MenuManager.CloseActiveMenu(player);
-                    }, _mapCooldown.IsMapInCooldown(map.Name));
-                }
-
-                nominationMenu.AddMenuOption("Exit", (CCSPlayerController player, ChatMenuOption option) =>
-                {
+                    Nominate(player, option.Text);
                     MenuManager.CloseActiveMenu(player);
-                });
+                }, _mapCooldown.IsMapInCooldown(map.Name));
             }
+
+            //nominationMenu.AddMenuOption("Exit", (CCSPlayerController player, ChatMenuOption option) =>
+           // {
+           //     MenuManager.CloseActiveMenu(player);
+            //});
+        }
+
+        private ScreenMenu CreateNominationScreenMenu()
+        {
+            ScreenMenu screenMenu = new ScreenMenu("Nomination", _plugin!) // Creating the menu
+            {
+                PostSelectAction = CS2ScreenMenuAPI.Enums.PostSelectAction.Nothing,
+                IsSubMenu = false, // this is not a sub menu
+                                   //TextColor = Color.DarkOrange, // if this not set it will be the API default color
+                                   //FontName = "Impact",
+                                   //MenuType = MenuType.KeyPress// IF you wanna use both types you don't need to add this since default value is using Both Types.
+            };
+
+            foreach (var map in _mapLister.Maps!.Where(x => x.Name != Server.MapName))
+            {
+                screenMenu.AddOption(map.Name, (player, option) =>
+                {
+                    Nominate(player, option.Text);
+                    MenuAPI.CloseActiveMenu(player);
+                }, _mapCooldown.IsMapInCooldown(map.Name));
+            }
+
+            return screenMenu;
         }
 
         public void CommandHandler(CCSPlayerController? player, string map)
@@ -172,16 +180,20 @@ namespace cs2_rockthevote
                 return;
             }
 
-            // close prev menu
-            MenuAPI.CloseActiveMenu(player);
-
-            // logger
-            //_plugin!._logger.Log(LogLevel.Information, $"Opening nomination menu for player {player.PlayerName}");
-
             switch (_config.HudMenu)
             {
                 case 2:
+                    // check view model status
+                    //CCSPlayerPawn pawn = player.PlayerPawn.Value!;
+                    //var handle = new CHandle<CCSGOViewModel>((IntPtr)(pawn.ViewModelServices!.Handle + Schema.GetSchemaOffset("CCSPlayer_ViewModelServices", "m_hViewModel") + 4));
+                    //if (!handle.IsValid)
+                    //{
+                    //    CCSGOViewModel viewmodel = Utilities.CreateEntityByName<CCSGOViewModel>("predicted_viewmodel")!;
+                    //    handle.Raw = viewmodel.EntityHandle.Raw;
+                    //    Utilities.SetStateChanged(pawn, "CCSPlayerPawnBase", "m_pViewModelServices");
+                    //}
                     MenuAPI.OpenMenu(_plugin!, player, nominationScreenMenu!);
+                    MenuManager.OpenChatMenu(player, nominationMenu!); //fallback
                     break;
                 case 1:
                 case 0:
