@@ -45,7 +45,7 @@ namespace cs2_rockthevote
         Dictionary<string, AsyncVoteManager> VotedMaps = new();
         ChatMenu? votemapMenu = null;
         CenterHtmlMenu? votemapMenuHud = null;
-        ScreenMenu? votemapScreenMenuHud;
+        ScreenMenu? votemapScreenMenuHud = null;
         private VotemapConfig _config = new();
         private GameRules _gamerules;
         private StringLocalizer _localizer;
@@ -96,11 +96,11 @@ namespace cs2_rockthevote
                     AddVote(player, option.Text);
                 }, _mapCooldown.IsMapInCooldown(map.Name));
 
-                votemapScreenMenuHud.AddOption(map.Name, (player, option) =>
-                {
-                    AddVote(player, map.Name);
-                    MenuAPI.CloseActiveMenu(player);
-                }, _mapCooldown.IsMapInCooldown(map.Name));
+                //votemapScreenMenuHud.AddOption(map.Name, (player, option) =>
+                //{
+                //    AddVote(player, map.Name);
+                //    MenuAPI.CloseActiveMenu(player);
+                //}, _mapCooldown.IsMapInCooldown(map.Name));
             }
         }
 
@@ -108,8 +108,8 @@ namespace cs2_rockthevote
         {
             ScreenMenu screenMenu = new ScreenMenu("Votemap", _plugin!)
             {
-                PostSelectAction = CS2ScreenMenuAPI.Enums.PostSelectAction.Nothing,
-                IsSubMenu = false,
+                PostSelectAction = CS2ScreenMenuAPI.Enums.PostSelectAction.Close,
+                IsSubMenu = false
             };
 
             foreach (var map in _mapLister.Maps!.Where(x => x.Name != Server.MapName))
@@ -117,7 +117,7 @@ namespace cs2_rockthevote
                 screenMenu.AddOption(map.Name, (player, option) =>
                 {
                     AddVote(player, map.Name);
-                    MenuAPI.CloseActiveMenu(player);
+                   // MenuAPI.CloseActiveMenu(player);
                 }, _mapCooldown.IsMapInCooldown(map.Name));
             }
 
@@ -189,6 +189,7 @@ namespace cs2_rockthevote
                     //}
 
                     MenuAPI.OpenMenu(_plugin!, player, votemapScreenMenuHud!);
+                    MenuManager.OpenChatMenu(player, votemapMenu!); //fallback
                     break;
                 case 1:
                     MenuManager.OpenCenterHtmlMenu(_plugin!, player, votemapMenuHud!);
@@ -243,6 +244,20 @@ namespace cs2_rockthevote
                         _changeMapManager.ChangeNextMap();
                     else
                         Server.PrintToChatAll(_localizer.LocalizeWithPrefix("general.changing-map-next-round", map));
+                    break;
+            }
+            switch (_config.HudMenu)
+            {
+                case 2:
+                    MenuAPI.CloseActiveMenu(player);
+                    MenuManager.CloseActiveMenu(player);
+                    break;
+
+                case 1:
+                    MenuManager.CloseActiveMenu(player);
+                    break;
+                case 0:
+                    MenuManager.CloseActiveMenu(player);
                     break;
             }
         }

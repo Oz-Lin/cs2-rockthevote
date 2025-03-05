@@ -48,7 +48,7 @@ namespace cs2_rockthevote
     {
         Dictionary<int, (string PlayerName, List<string> Maps)> Nominations = new();
         ChatMenu? nominationMenu = null;
-        ScreenMenu? nominationScreenMenu;
+        ScreenMenu? nominationScreenMenu = null;
         private RtvConfig _config = new();
         private GameRules _gamerules;
         private StringLocalizer _localizer;
@@ -100,17 +100,17 @@ namespace cs2_rockthevote
                 }, _mapCooldown.IsMapInCooldown(map.Name));
             }
 
-            //nominationMenu.AddMenuOption("Exit", (CCSPlayerController player, ChatMenuOption option) =>
-           // {
-           //     MenuManager.CloseActiveMenu(player);
-            //});
+            nominationMenu.AddMenuOption("Exit", (CCSPlayerController player, ChatMenuOption option) =>
+            {
+                MenuManager.CloseActiveMenu(player);
+            });
         }
 
         private ScreenMenu CreateNominationScreenMenu()
         {
             ScreenMenu screenMenu = new ScreenMenu("Nomination", _plugin!) // Creating the menu
             {
-                PostSelectAction = CS2ScreenMenuAPI.Enums.PostSelectAction.Nothing,
+                PostSelectAction = CS2ScreenMenuAPI.Enums.PostSelectAction.Close,
                 IsSubMenu = false, // this is not a sub menu
                                    //TextColor = Color.DarkOrange, // if this not set it will be the API default color
                                    //FontName = "Impact",
@@ -122,7 +122,7 @@ namespace cs2_rockthevote
                 screenMenu.AddOption(map.Name, (player, option) =>
                 {
                     Nominate(player, option.Text);
-                    MenuAPI.CloseActiveMenu(player);
+                   // MenuAPI.CloseActiveMenu(player);
                 }, _mapCooldown.IsMapInCooldown(map.Name));
             }
 
@@ -180,20 +180,26 @@ namespace cs2_rockthevote
                 return;
             }
 
+            // log info
+            //Logger.Log(LogLevel.Info, $"Opening nomination menu for player {player.PlayerName} in state {player.State}");
+
+            if (nominationScreenMenu == null)
+            {
+                player.PrintToChat("Nomination screen menu is not initialized.");
+                return;
+            }
+
+            if (_plugin == null)
+            {
+                player.PrintToChat("Plugin is not initialized.");
+                return;
+            }
+
             switch (_config.HudMenu)
             {
                 case 2:
-                    // check view model status
-                    //CCSPlayerPawn pawn = player.PlayerPawn.Value!;
-                    //var handle = new CHandle<CCSGOViewModel>((IntPtr)(pawn.ViewModelServices!.Handle + Schema.GetSchemaOffset("CCSPlayer_ViewModelServices", "m_hViewModel") + 4));
-                    //if (!handle.IsValid)
-                    //{
-                    //    CCSGOViewModel viewmodel = Utilities.CreateEntityByName<CCSGOViewModel>("predicted_viewmodel")!;
-                    //    handle.Raw = viewmodel.EntityHandle.Raw;
-                    //    Utilities.SetStateChanged(pawn, "CCSPlayerPawnBase", "m_pViewModelServices");
-                    //}
                     MenuAPI.OpenMenu(_plugin!, player, nominationScreenMenu!);
-                    MenuManager.OpenChatMenu(player, nominationMenu!); //fallback
+                    MenuManager.OpenChatMenu(player, nominationMenu!);
                     break;
                 case 1:
                 case 0:
@@ -247,6 +253,7 @@ namespace cs2_rockthevote
             {
                 case 2:
                     MenuAPI.CloseActiveMenu(player);
+                    MenuManager.CloseActiveMenu(player);
                     break;
 
                 case 1:
