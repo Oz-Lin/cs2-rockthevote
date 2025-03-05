@@ -8,6 +8,7 @@ using cs2_rockthevote.Core;
 using CS2ScreenMenuAPI;
 using CS2ScreenMenuAPI.Enums;
 using CS2ScreenMenuAPI.Internal;
+using Microsoft.Extensions.Logging;
 using System.Drawing;
 using System.Numerics;
 
@@ -15,6 +16,7 @@ namespace cs2_rockthevote
 {
     public partial class Plugin
     {
+        [CommandHelper(whoCanExecute: CommandUsage.CLIENT_ONLY)]
         [ConsoleCommand("css_nominate", "nominate a map to rtv")]
         [ConsoleCommand("nominate", "nominate a map to rtv")]
         [ConsoleCommand("css_nom", "nominate a map to rtv")]
@@ -66,6 +68,7 @@ namespace cs2_rockthevote
         {
             _plugin = plugin;
         }
+
         public void OnMapStart(string map)
         {
             Nominations.Clear();
@@ -84,9 +87,9 @@ namespace cs2_rockthevote
                 {
                     PostSelectAction = CS2ScreenMenuAPI.Enums.PostSelectAction.Close,
                     IsSubMenu = false, // this is not a sub menu
-                    //TextColor = Color.DarkOrange, // if this not set it will be the API default color
-                    //FontName = "Impact",
-                    //MenuType = MenuType.KeyPress// IF you wanna use both types you don't need to add this since default value is using Both Types.
+                                       //TextColor = Color.DarkOrange, // if this not set it will be the API default color
+                                       //FontName = "Impact",
+                                       //MenuType = MenuType.KeyPress// IF you wanna use both types you don't need to add this since default value is using Both Types.
                 };
 
                 foreach (var map in _mapLister.Maps!.Where(x => x.Name != Server.MapName))
@@ -98,8 +101,8 @@ namespace cs2_rockthevote
                     }, _mapCooldown.IsMapInCooldown(map.Name));
                 }
             }
-            // fall back to chat menu if screen menu broken
-            if (_config.HudMenu >= 1)
+
+            if (_config.HudMenu == 1 || _config.HudMenu == 0)
             {
                 nominationMenu = new("Nomination");
                 foreach (var map in _mapLister.Maps!.Where(x => x.Name != Server.MapName))
@@ -160,11 +163,31 @@ namespace cs2_rockthevote
             }
         }
 
-        public void OpenNominationMenu(CCSPlayerController player)
+        public void OpenNominationMenu(CCSPlayerController? player)
         {
-            if (_config.HudMenu == 2) MenuAPI.OpenMenu(_plugin!, player, nominationScreenMenu!);
-            if (_config.HudMenu >= 1) MenuManager.OpenChatMenu(player, nominationMenu!);
-            // trying to debug why screen menu broken in nomination
+            // check valid
+            if (player == null || !player.IsValid)
+            {
+                player?.PrintToChat("You are not in a valid state to open the nomination menu.");
+                return;
+            }
+
+            // close prev menu
+            MenuAPI.CloseActiveMenu(player);
+
+            // logger
+            //_plugin!._logger.Log(LogLevel.Information, $"Opening nomination menu for player {player.PlayerName}");
+
+            switch (_config.HudMenu)
+            {
+                case 2:
+                    MenuAPI.OpenMenu(_plugin!, player, nominationScreenMenu!);
+                    break;
+                case 1:
+                case 0:
+                    MenuManager.OpenChatMenu(player, nominationMenu!);
+                    break;
+            }
         }
 
         void Nominate(CCSPlayerController player, string map)
@@ -207,8 +230,18 @@ namespace cs2_rockthevote
                 player.PrintToChat(_localizer.LocalizeWithPrefix("nominate.already-nominated", matchingMap,
                     totalVotes));
             }
-            if (_config.HudMenu == 2) MenuAPI.CloseActiveMenu(player);
-            if (_config.HudMenu >= 1) MenuManager.CloseActiveMenu(player);
+
+            switch (_config.HudMenu)
+            {
+                case 2:
+                    MenuAPI.CloseActiveMenu(player);
+                    break;
+
+                case 1:
+                case 0:
+                    MenuManager.CloseActiveMenu(player);
+                    break;
+            }
         }
 
         public List<string> NominationWinners()

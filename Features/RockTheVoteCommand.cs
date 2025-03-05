@@ -8,6 +8,7 @@ namespace cs2_rockthevote
 {
     public partial class Plugin
     {
+        [CommandHelper(whoCanExecute: CommandUsage.CLIENT_AND_SERVER)]
         [ConsoleCommand("css_rtv", "Votes to rock the vote")]
         [ConsoleCommand("rtv", "Votes to rock the vote")]
         public void OnRTV(CCSPlayerController? player, CommandInfo? command)
@@ -24,6 +25,7 @@ namespace cs2_rockthevote
             }
         }
 
+        [CommandHelper(whoCanExecute: CommandUsage.CLIENT_AND_SERVER)]
         [ConsoleCommand("css_unrtv", "Removes a vote to rock the vote")]
         [ConsoleCommand("unrtv", "Removes a vote to rock the vote")]
         public void OnUnRTV(CCSPlayerController? player, CommandInfo? command)

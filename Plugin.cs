@@ -95,38 +95,38 @@ namespace cs2_rockthevote
             if (player is not null)
             {
                 var text = @event.Text.Trim().ToLower();
-                if (text == "rtv")
+                if (text == "rtv" || text == "!rtv")
                 {
                     _rtvManager.CommandHandler(player);
                 }
-                else if (text == "ext")
+                else if (text == "ext" || text == "!ext")
                 {
                     //_extManager.CommandHandler(player);
                     _extendMapManager.CommandHandler(player);
                 }
-                else if (text.StartsWith("nominate"))
+                else if (text.StartsWith("nominate") || text.StartsWith("!nominate"))
                 {
                     var split = text.Split("nominate");
                     var map = split.Length > 1 ? split[1].Trim() : "";
                     _nominationManager.CommandHandler(player, map);
                 }
-                else if (text.StartsWith("nom"))
+                else if (text.StartsWith("nom") || text.StartsWith("!nom"))
                 {
                     var split = text.Split("nom");
                     var map = split.Length > 1 ? split[1].Trim() : "";
                     _nominationManager.CommandHandler(player, map);
                 }
-                else if (text.StartsWith("votemap"))
+                else if (text.StartsWith("votemap") || text.StartsWith("votemap"))
                 {
                     var split = text.Split("votemap");
                     var map = split.Length > 1 ? split[1].Trim() : "";
                     _votemapManager.CommandHandler(player, map);
                 }
-                else if (text.StartsWith("timeleft"))
+                else if (text.StartsWith("timeleft") || text.StartsWith("!timeleft"))
                 {
                     _timeLeft.CommandHandler(player);
                 }
-                else if (text.StartsWith("nextmap"))
+                else if (text.StartsWith("nextmap") || text.StartsWith("!nextmap"))
                 {
                     _nextMap.CommandHandler(player);
                 }

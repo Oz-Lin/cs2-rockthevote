@@ -10,12 +10,15 @@ using CS2ScreenMenuAPI;
 using CS2ScreenMenuAPI.Enums;
 using CS2ScreenMenuAPI.Internal;
 using CS2ScreenMenuAPI.Interfaces;
+using Microsoft.Extensions.Logging;
 
 namespace cs2_rockthevote
 {
     public partial class Plugin
     {
+        [CommandHelper(whoCanExecute: CommandUsage.CLIENT_ONLY)]
         [ConsoleCommand("votemap", "Vote to change to a map")]
+        [ConsoleCommand("css_votemap", "Vote to change to a map")]
         public void OnVotemap(CCSPlayerController? player, CommandInfo command)
         {
             string map = command.GetArg(1).Trim().ToLower();
@@ -96,16 +99,13 @@ namespace cs2_rockthevote
                 {
                     AddVote(player, option.Text);
                 }, _mapCooldown.IsMapInCooldown(map.Name));
-                
+
                 votemapScreenMenuHud.AddOption(map.Name, (player, option) =>
                 {
                     AddVote(player, map.Name);
                     //MenuAPI.CloseActiveMenu(player);
                 }, _mapCooldown.IsMapInCooldown(map.Name));
             }
-
-
-          
         }
 
         public void CommandHandler(CCSPlayerController? player, string map)
@@ -150,42 +150,36 @@ namespace cs2_rockthevote
             }
         }
 
-        public void OpenVotemapMenu(CCSPlayerController player)
+        public void OpenVotemapMenu(CCSPlayerController? player)
         {
-            if (_config.HudMenu == 2)
-                MenuAPI.OpenMenu(_plugin!, player, votemapScreenMenuHud!);
-            if (_config.HudMenu == 1)
-                MenuManager.OpenCenterHtmlMenu(_plugin!, player, votemapMenuHud!);
-            if (_config.HudMenu == 0)
-                MenuManager.OpenChatMenu(player, votemapMenu!);
+            // check valid
+            if (player == null || !player.IsValid)
+            {
+                player?.PrintToChat("You are not in a valid state to open the nomination menu.");
+                return;
+            }
+
+            // close prev menu
+            MenuAPI.CloseActiveMenu(player);
+
+            // logger
+            //_plugin!._logger.Log(LogLevel.Information, $"Opening nomination menu for player {player.PlayerName}");
+
+            switch (_config.HudMenu)
+            {
+                case 2:
+                    // close prev menu
+                    MenuAPI.CloseActiveMenu(player);
+                    MenuAPI.OpenMenu(_plugin!, player, votemapScreenMenuHud!);
+                    break;
+                case 1:
+                    MenuManager.OpenCenterHtmlMenu(_plugin!, player, votemapMenuHud!);
+                    break;
+                case 0:
+                    MenuManager.OpenChatMenu(player, votemapMenu!);
+                    break;
+            }
         }
-
-        //private ScreenMenu CreateScreenMenu()
-        //{
-        //    var screenMenu = new ScreenMenu(_localizer.Localize("votemap.menu-title"), _plugin!)
-        //    {
-        //        PostSelectAction = CS2ScreenMenuAPI.Enums.PostSelectAction.Close,
-        //        IsSubMenu = false,
-        //       // TextColor = Color.DarkOrange,
-        //       // FontName = "Impact"
-        //    };
-
-        //    foreach (var map in _mapLister.Maps!.Where(x => x.Name != Server.MapName))
-        //    {
-        //        screenMenu.AddOption(map.Name, (player, option) =>
-        //        {
-        //            AddVote(player, option.Text);
-        //            MenuAPI.CloseActiveMenu(player);
-        //        }, _mapCooldown.IsMapInCooldown(map.Name));
-        //    }
-
-        //    screenMenu.AddOption("Exit", (player, option) =>
-        //    {
-        //        MenuAPI.CloseActiveMenu(player);
-        //    });
-
-        //    return screenMenu;
-        //}
 
         void AddVote(CCSPlayerController player, string map)
         {
