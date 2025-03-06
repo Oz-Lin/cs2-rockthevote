@@ -18,7 +18,7 @@ namespace cs2_rockthevote
 {
     public partial class Plugin
     {
-        //[CommandHelper(whoCanExecute: CommandUsage.CLIENT_ONLY)]
+        [CommandHelper(whoCanExecute: CommandUsage.CLIENT_ONLY)]
         [ConsoleCommand("css_nominate", "nominate a map to rtv")]
         [ConsoleCommand("nominate", "nominate a map to rtv")]
         [ConsoleCommand("css_nom", "nominate a map to rtv")]
@@ -28,7 +28,6 @@ namespace cs2_rockthevote
             if (player == null) return;
             string map = command.GetArg(1).Trim().ToLower();
             _nominationManager.CommandHandler(player!, map);
-
         }
 
         [GameEventHandler(HookMode.Pre)]
@@ -46,9 +45,9 @@ namespace cs2_rockthevote
 
     public class NominationCommand : IPluginDependency<Plugin, Config>
     {
-        Dictionary<int, (string PlayerName, List<string> Maps)> Nominations = new();
-        ChatMenu? nominationMenu = null;
-        ScreenMenu? nominationScreenMenu = null;
+        private Dictionary<int, (string PlayerName, List<string> Maps)> Nominations = new();
+        private ChatMenu? nominationMenu = null;
+        private ScreenMenu? nominationScreenMenu = null;
         private RtvConfig _config = new();
         private GameRules _gamerules;
         private StringLocalizer _localizer;
@@ -85,36 +84,44 @@ namespace cs2_rockthevote
 
         public void OnMapsLoaded(object? sender, Map[] maps)
         {
-            if (_config.HudMenu == 2)
-            {
-                nominationScreenMenu = CreateNominationScreenMenu();
-            }
+            InitializeMenus();
+            PopulateMenus();
+        }
 
+        private void InitializeMenus()
+        {
+            nominationScreenMenu = CreateNominationScreenMenu();
             nominationMenu = new("Nomination");
+        }
+
+        private void PopulateMenus()
+        {
             foreach (var map in _mapLister.Maps!.Where(x => x.Name != Server.MapName))
             {
-                nominationMenu.AddMenuOption(map.Name, (CCSPlayerController player, ChatMenuOption option) =>
-                {
-                    Nominate(player, option.Text);
-                    MenuManager.CloseActiveMenu(player);
-                }, _mapCooldown.IsMapInCooldown(map.Name));
+                AddMenuOption(nominationMenu, map.Name);
             }
 
-            nominationMenu.AddMenuOption("Exit", (CCSPlayerController player, ChatMenuOption option) =>
+            nominationMenu?.AddMenuOption("Exit", (CCSPlayerController player, ChatMenuOption option) =>
             {
                 MenuManager.CloseActiveMenu(player);
             });
         }
 
+        private void AddMenuOption(ChatMenu? menu, string mapName)
+        {
+            menu?.AddMenuOption(mapName, (CCSPlayerController player, ChatMenuOption option) =>
+            {
+                Nominate(player, option.Text);
+                MenuManager.CloseActiveMenu(player);
+            }, _mapCooldown.IsMapInCooldown(mapName));
+        }
+
         private ScreenMenu CreateNominationScreenMenu()
         {
-            ScreenMenu screenMenu = new ScreenMenu("Nomination", _plugin!) // Creating the menu
+            ScreenMenu screenMenu = new ScreenMenu("Nomination", _plugin!)
             {
                 PostSelectAction = CS2ScreenMenuAPI.Enums.PostSelectAction.Close,
-                IsSubMenu = false, // this is not a sub menu
-                                   //TextColor = Color.DarkOrange, // if this not set it will be the API default color
-                                   //FontName = "Impact",
-                                   //MenuType = MenuType.KeyPress// IF you wanna use both types you don't need to add this since default value is using Both Types.
+                IsSubMenu = false
             };
 
             foreach (var map in _mapLister.Maps!.Where(x => x.Name != Server.MapName))
@@ -122,7 +129,6 @@ namespace cs2_rockthevote
                 screenMenu.AddOption(map.Name, (player, option) =>
                 {
                     Nominate(player, option.Text);
-                   // MenuAPI.CloseActiveMenu(player);
                 }, _mapCooldown.IsMapInCooldown(map.Name));
             }
 
@@ -131,8 +137,7 @@ namespace cs2_rockthevote
 
         public void CommandHandler(CCSPlayerController? player, string map)
         {
-            if (player is null)
-                return;
+            if (player is null) return;
 
             map = map.ToLower().Trim();
             if (_pluginState.DisableCommands || !_config.NominationEnabled)
@@ -141,29 +146,27 @@ namespace cs2_rockthevote
                 return;
             }
 
-            if (_gamerules.WarmupRunning)
+            if (_gamerules.WarmupRunning && !_config.EnabledInWarmup)
             {
-                if (!_config.EnabledInWarmup)
-                {
-                    player.PrintToChat(_localizer.LocalizeWithPrefix("general.validation.warmup"));
-                    return;
-                }
-            }
-            else if (_config.MinRounds > 0 && _config.MinRounds > _gamerules.TotalRoundsPlayed)
-            {
-                player!.PrintToChat(_localizer.LocalizeWithPrefix("general.validation.minimum-rounds", _config.MinRounds));
+                player.PrintToChat(_localizer.LocalizeWithPrefix("general.validation.warmup"));
                 return;
             }
 
-            if (ServerManager.ValidPlayerCount() < _config!.MinPlayers)
+            if (_config.MinRounds > 0 && _config.MinRounds > _gamerules.TotalRoundsPlayed)
             {
-                player.PrintToChat(_localizer.LocalizeWithPrefix("general.validation.minimum-players", _config!.MinPlayers));
+                player.PrintToChat(_localizer.LocalizeWithPrefix("general.validation.minimum-rounds", _config.MinRounds));
+                return;
+            }
+
+            if (ServerManager.ValidPlayerCount() < _config.MinPlayers)
+            {
+                player.PrintToChat(_localizer.LocalizeWithPrefix("general.validation.minimum-players", _config.MinPlayers));
                 return;
             }
 
             if (string.IsNullOrEmpty(map))
             {
-                OpenNominationMenu(player!);
+                OpenNominationMenu(player);
             }
             else
             {
@@ -173,15 +176,11 @@ namespace cs2_rockthevote
 
         public void OpenNominationMenu(CCSPlayerController? player)
         {
-            // check valid
             if (player == null || !player.IsValid)
             {
                 player?.PrintToChat("You are not in a valid state to open the nomination menu.");
                 return;
             }
-
-            // log info
-            //Logger.Log(LogLevel.Info, $"Opening nomination menu for player {player.PlayerName} in state {player.State}");
 
             if (nominationScreenMenu == null)
             {
@@ -208,17 +207,17 @@ namespace cs2_rockthevote
             }
         }
 
-        void Nominate(CCSPlayerController player, string map)
+        private void Nominate(CCSPlayerController player, string map)
         {
             if (map == Server.MapName)
             {
-                player!.PrintToChat(_localizer.LocalizeWithPrefix("general.validation.current-map"));
+                player.PrintToChat(_localizer.LocalizeWithPrefix("general.validation.current-map"));
                 return;
             }
 
             if (_mapCooldown.IsMapInCooldown(map))
             {
-                player!.PrintToChat(_localizer.LocalizeWithPrefix("general.validation.map-played-recently"));
+                player.PrintToChat(_localizer.LocalizeWithPrefix("general.validation.map-played-recently"));
                 return;
             }
 
@@ -231,31 +230,32 @@ namespace cs2_rockthevote
             if (!Nominations.ContainsKey(userId))
                 Nominations[userId] = (player.PlayerName, new List<string>());
 
-            bool alreadyVoted = Nominations[userId].Maps.IndexOf(matchingMap) != -1;
+            bool alreadyVoted = Nominations[userId].Maps.Contains(matchingMap);
             if (!alreadyVoted)
                 Nominations[userId].Maps.Add(matchingMap);
 
-            var totalVotes = Nominations.Select(x => x.Value.Maps.Where(y => y == matchingMap).Count())
-                .Sum();
+            var totalVotes = Nominations.Select(x => x.Value.Maps.Count(y => y == matchingMap)).Sum();
 
             if (!alreadyVoted)
             {
-                Server.PrintToChatAll(_localizer.LocalizeWithPrefix("nominate.nominated", player.PlayerName,
-                    matchingMap, totalVotes));
+                Server.PrintToChatAll(_localizer.LocalizeWithPrefix("nominate.nominated", player.PlayerName, matchingMap, totalVotes));
             }
             else
             {
-                player.PrintToChat(_localizer.LocalizeWithPrefix("nominate.already-nominated", matchingMap,
-                    totalVotes));
+                player.PrintToChat(_localizer.LocalizeWithPrefix("nominate.already-nominated", matchingMap, totalVotes));
             }
 
+            CloseActiveMenus(player);
+        }
+
+        private void CloseActiveMenus(CCSPlayerController player)
+        {
             switch (_config.HudMenu)
             {
                 case 2:
                     MenuAPI.CloseActiveMenu(player);
                     MenuManager.CloseActiveMenu(player);
                     break;
-
                 case 1:
                 case 0:
                     MenuManager.CloseActiveMenu(player);
@@ -268,12 +268,9 @@ namespace cs2_rockthevote
             if (Nominations.Count == 0)
                 return new List<string>();
 
-            var rawNominations = Nominations
-                .Select(x => x.Value.Maps)
-                .Aggregate((acc, x) => acc.Concat(x).ToList());
+            var rawNominations = Nominations.Select(x => x.Value.Maps).Aggregate((acc, x) => acc.Concat(x).ToList());
 
-            return rawNominations
-                .Distinct()
+            return rawNominations.Distinct()
                 .Select(map => new KeyValuePair<string, int>(map, rawNominations.Count(x => x == map)))
                 .OrderByDescending(x => x.Value)
                 .Select(x => x.Key)
