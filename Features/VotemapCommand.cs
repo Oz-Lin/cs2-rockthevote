@@ -18,7 +18,7 @@ namespace cs2_rockthevote
 {
     public partial class Plugin
     {
-        //[CommandHelper(whoCanExecute: CommandUsage.CLIENT_ONLY)]
+        [CommandHelper(whoCanExecute: CommandUsage.CLIENT_ONLY)]
         [ConsoleCommand("votemap", "Vote to change to a map")]
         [ConsoleCommand("css_votemap", "Vote to change to a map")]
         public void OnVotemap(CCSPlayerController? player, CommandInfo command)
@@ -112,7 +112,7 @@ namespace cs2_rockthevote
                 AddVote(player, option.Text);
             }, _mapCooldown.IsMapInCooldown(mapName));
         }
-        private void AddHTMLMenuOption (CenterHtmlMenu? menu, string mapName)
+        private void AddHTMLMenuOption(CenterHtmlMenu? menu, string mapName)
         {
             menu?.AddMenuOption(mapName, (player, option) =>
             {
@@ -211,6 +211,7 @@ namespace cs2_rockthevote
             {
                 case 2:
                     MenuAPI.OpenMenu(_plugin!, player, votemapScreenMenuHud!);
+                    MenuManager.OpenChatMenu(player, votemapMenu!);
                     break;
                 case 1:
                     MenuManager.OpenCenterHtmlMenu(_plugin!, player, votemapMenuHud!);
@@ -235,19 +236,18 @@ namespace cs2_rockthevote
                 return;
             }
 
-            if (_mapLister.Maps!.FirstOrDefault(x => x.Name.ToLower() == map) is null)
-            {
-                player.PrintToChat(_localizer.LocalizeWithPrefix("general.invalid-map"));
+            string matchingMap = _mapLister.GetSingleMatchingMapName(map, player, _localizer);
+
+            if (matchingMap == "")
                 return;
-            }
 
             var userId = player.UserId!.Value;
-            if (!VotedMaps.ContainsKey(map))
-                VotedMaps.Add(map, new AsyncVoteManager(_config));
+            if (!VotedMaps.ContainsKey(matchingMap))
+                VotedMaps.Add(matchingMap, new AsyncVoteManager(_config));
 
-            var voteManager = VotedMaps[map];
+            var voteManager = VotedMaps[matchingMap];
             VoteResult result = voteManager.AddVote(userId);
-            HandleVoteResult(player, map, result);
+            HandleVoteResult(player, matchingMap, result);
         }
 
         private void HandleVoteResult(CCSPlayerController player, string map, VoteResult result)
@@ -281,6 +281,7 @@ namespace cs2_rockthevote
             {
                 case 2:
                     MenuAPI.CloseActiveMenu(player);
+                    MenuManager.CloseActiveMenu(player);
                     break;
                 case 1:
                 case 0:
@@ -295,7 +296,5 @@ namespace cs2_rockthevote
             foreach (var map in VotedMaps)
                 map.Value.RemoveVote(userId);
         }
-
-
     }
 }
