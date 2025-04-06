@@ -20,10 +20,10 @@ namespace cs2_rockthevote
     {
         [CommandHelper(whoCanExecute: CommandUsage.CLIENT_ONLY)]
         [ConsoleCommand("votemap", "Vote to change to a map")]
+        [ConsoleCommand("vm", "Vote to change to a map")]
         [ConsoleCommand("css_votemap", "Vote to change to a map")]
         public void OnVotemap(CCSPlayerController? player, CommandInfo command)
         {
-            if (player == null) return;
             string map = command.GetArg(1).Trim().ToLower();
             _votemapManager.CommandHandler(player!, map);
         }

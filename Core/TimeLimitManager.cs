@@ -10,8 +10,34 @@ namespace cs2_rockthevote.Core
         private ConVar? _timeLimit;
 
         public decimal TimeLimitValue {
-            get => (decimal)(_timeLimit?.GetPrimitiveValue<float>() ?? 0F) * 60M;
-            set => _timeLimit?.SetValue((float)(value / 60M));
+            get
+            {
+                if (_timeLimit == null)
+                {
+                    LoadCvar();
+                }
+                if (_timeLimit != null)
+                {
+                    float value = _timeLimit.GetPrimitiveValue<float>();
+                    return (decimal)value * 60M;
+                }
+                else
+                {
+                    return 0;
+                }
+            }
+            set
+            {
+                if (_timeLimit == null)
+                {
+                    LoadCvar();
+                }
+
+                if (_timeLimit != null)
+                {
+                    _timeLimit.SetValue((float)(value / 60M));
+                }
+            }
         }
 
         public bool UnlimitedTime => TimeLimitValue <= 0;
@@ -51,6 +77,10 @@ namespace cs2_rockthevote.Core
         void LoadCvar()
         {
             _timeLimit = ConVar.Find("mp_timelimit");
+            if (_timeLimit == null)
+            {
+                Server.PrintToConsole("Unable to get the value for 'mp_timelimit'.");
+            }
         }
 
         public void OnMapStart(string map)
@@ -63,9 +93,10 @@ namespace cs2_rockthevote.Core
             LoadCvar();
         }
 
-        public void ExtendTime(int minutes)
-        {
+        // Moved to ExtendRoundTimeManager.cs
+       // public void ExtendTime(int minutes)
+       // {
             // TODO: implement extending time
-        }
+       // }
     }
 }

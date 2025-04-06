@@ -71,5 +71,10 @@
   "extendmap.already-extended": "Already extended map for {green}{0}{default} minutes, try again later",
   "extendmap.no-extends-left": "No more extends.",
   "revote.success": "Your vote has been revoked. You can vote again.",
-  "revote.no-vote-in-progress": "There is no vote in progress to revoke."
+  "revote.no-vote-in-progress": "There is no vote in progress to revoke.",
+  "general.error.no-permission": "You don't have permission to use this command.",
+  "general.error.invalid-command-usage": "Invalid command usage.",
+  "mapcooldown.prefix": "{red}[MapCooldown]{default}",
+  "mapcooldown.added": "Map {green}{0}{default} has been added to the cooldown list.",
+  "mapcooldown.already-in-cooldown": "Map {green}{0}{default} is already in the cooldown list."
 }

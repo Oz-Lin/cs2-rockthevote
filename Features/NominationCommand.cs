@@ -5,6 +5,7 @@ using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Entities;
 using CounterStrikeSharp.API.Modules.Memory;
 using CounterStrikeSharp.API.Modules.Menu;
+using CounterStrikeSharp.API.Modules.Admin;
 using CounterStrikeSharp.API.Modules.Utils;
 using cs2_rockthevote.Core;
 using CS2ScreenMenuAPI;
@@ -16,18 +17,88 @@ using System.Numerics;
 
 namespace cs2_rockthevote
 {
+
     public partial class Plugin
     {
+        private MapLister _mapLister = null!;
+        private StringLocalizer _localizer = null!;
+
         [CommandHelper(whoCanExecute: CommandUsage.CLIENT_ONLY)]
         [ConsoleCommand("css_nominate", "nominate a map to rtv")]
         [ConsoleCommand("nominate", "nominate a map to rtv")]
         [ConsoleCommand("css_nom", "nominate a map to rtv")]
         [ConsoleCommand("nom", "nominate a map to rtv")]
+        [ConsoleCommand("css_yd", "nominate a map to rtv")]
+        [ConsoleCommand("yd", "nominate a map to rtv")]
         public void OnNominate(CCSPlayerController? player, CommandInfo command)
         {
             if (player == null) return;
             string map = command.GetArg(1).Trim().ToLower();
             _nominationManager.CommandHandler(player!, map);
+        }
+
+        [ConsoleCommand("css_mapcooldown", "Add a map to cooldown list (Admin only)")]
+        [CommandHelper(minArgs: 1, usage: "[map]", whoCanExecute: CommandUsage.CLIENT_AND_SERVER)]
+        public void OnMapCooldown(CCSPlayerController? player, CommandInfo command)
+        {
+            if (player != null && !AdminManager.PlayerHasPermissions(player, "@css/root"))
+            {
+                player.PrintToChat(_localizer.LocalizeWithPrefix("general.error.no-permission"));
+                return;
+            }
+
+            string map = command.GetArg(1).Trim().ToLower();
+            if (string.IsNullOrEmpty(map))
+            {
+                if (player != null)
+                    player.PrintToChat(_localizer.LocalizeWithPrefix("general.error.invalid-command-usage"));
+                else
+                    Server.PrintToConsole("Invalid command usage");
+                return;
+            }
+
+            string? matchingMap = null;
+            if (player != null)
+            {
+                matchingMap = _nominationManager.FindMatchingMap(map, player);
+                if (string.IsNullOrEmpty(matchingMap))
+                    return;
+            }
+            else
+            {
+                // Console command - try to find matching map
+                var possibleMaps = _nominationManager.GetAllMaps()
+                    .Where(m => m.Contains(map, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+
+                if (possibleMaps.Count == 0)
+                {
+                    Server.PrintToConsole($"No maps found matching '{map}'");
+                    return;
+                }
+                else if (possibleMaps.Count > 1)
+                {
+                    Server.PrintToConsole($"Multiple maps found matching '{map}': {string.Join(", ", possibleMaps)}");
+                    return;
+                }
+
+                matchingMap = possibleMaps[0];
+            }
+
+            if (_nominationManager.AddMapToCooldown(matchingMap))
+            {
+                if (player != null)
+                    Server.PrintToChatAll(_localizer.LocalizeWithPrefix("mapcooldown.added", matchingMap));
+                else
+                    Server.PrintToConsole($"Map '{matchingMap}' added to cooldown");
+            }
+            else
+            {
+                if (player != null)
+                    player.PrintToChat(_localizer.LocalizeWithPrefix("mapcooldown.already-in-cooldown", matchingMap));
+                else
+                    Server.PrintToConsole($"Map '{matchingMap}' is already in cooldown");
+            }
         }
 
         [GameEventHandler(HookMode.Pre)]
@@ -209,32 +280,33 @@ namespace cs2_rockthevote
 
         private void Nominate(CCSPlayerController player, string map)
         {
-            if (map == Server.MapName)
-            {
-                player.PrintToChat(_localizer.LocalizeWithPrefix("general.validation.current-map"));
-                return;
-            }
-
-            if (_mapCooldown.IsMapInCooldown(map))
-            {
-                player.PrintToChat(_localizer.LocalizeWithPrefix("general.validation.map-played-recently"));
-                return;
-            }
-
             string matchingMap = _mapLister.GetSingleMatchingMapName(map, player, _localizer);
 
             if (matchingMap == "")
                 return;
 
+            if (matchingMap.Equals(Server.MapName, StringComparison.OrdinalIgnoreCase))
+            {
+                player.PrintToChat(_localizer.LocalizeWithPrefix("general.validation.current-map"));
+                return;
+            }
+
+            if (_mapCooldown.IsMapInCooldown(matchingMap))
+            {
+                player.PrintToChat(_localizer.LocalizeWithPrefix("general.validation.map-played-recently"));
+                return;
+            }
+
             var userId = player.UserId!.Value;
             if (!Nominations.ContainsKey(userId))
                 Nominations[userId] = (player.PlayerName, new List<string>());
 
-            bool alreadyVoted = Nominations[userId].Maps.Contains(matchingMap);
+            bool alreadyVoted = Nominations[userId].Maps.IndexOf(matchingMap) != -1;
             if (!alreadyVoted)
                 Nominations[userId].Maps.Add(matchingMap);
 
-            var totalVotes = Nominations.Select(x => x.Value.Maps.Count(y => y == matchingMap)).Sum();
+            var totalVotes = Nominations.Select(x => x.Value.Maps.Where(y => y == matchingMap).Count())
+                .Sum();
 
             if (!alreadyVoted)
             {
@@ -287,6 +359,21 @@ namespace cs2_rockthevote
             int userId = player.UserId!.Value;
             if (Nominations.ContainsKey(userId))
                 Nominations.Remove(userId);
+        }
+
+        public string FindMatchingMap(string map, CCSPlayerController player)
+        {
+            return _mapLister.GetSingleMatchingMapName(map, player, _localizer);
+        }
+
+        public List<string> GetAllMaps()
+        {
+            return _mapLister.GetMaps().Select(m => m.Name).ToList();
+        }
+
+        public bool AddMapToCooldown(string map)
+        {
+            return _mapCooldown.AddMapToCooldown(map);
         }
     }
 }

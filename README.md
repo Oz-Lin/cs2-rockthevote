@@ -212,4 +212,4 @@ Requires "@css/vip" permission
 
 # Limitations
  - Plugins is still under development and a lot of functionality is still going to be added in the future.
- - I usually test the new versions in an empty server with bots so it is hard to tell if everything is actually working, feel free to post any issues here or in the discord thread so I can fix them https://discord.com/channels/1160907911501991946/1176224458751627514
+ - I usually test the new versions in an empty server with bots so it is hard to tell if everything is actually working, feel free to post any issues here or in the discord thread so I can fix them https://discord.com/channels/1160907911501991946/1356499757362843678

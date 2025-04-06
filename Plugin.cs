@@ -1,8 +1,10 @@
 ﻿using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
+using CounterStrikeSharp.API.Modules.Events;
 using cs2_rockthevote.Features;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using static CounterStrikeSharp.API.Core.Listeners;
 
 namespace cs2_rockthevote
@@ -11,7 +13,8 @@ namespace cs2_rockthevote
     {
         public void ConfigureServices(IServiceCollection serviceCollection)
         {
-            var di = new DependencyManager<Plugin, Config>();
+            serviceCollection.AddLogging();
+            var di = new DependencyManager<Plugin, Config>(serviceCollection.BuildServiceProvider().GetRequiredService<ILogger<DependencyManager<Plugin, Config>>>());
             di.LoadDependencies(typeof(Plugin).Assembly);
             di.AddIt(serviceCollection);
             serviceCollection.AddScoped<StringLocalizer>();
@@ -21,7 +24,12 @@ namespace cs2_rockthevote
     public partial class Plugin : BasePlugin, IPluginConfig<Config>
     {
         public override string ModuleName => "RockTheVote";
-        public override string ModuleVersion => "1.9.5";
+#if DEBUG
+        public override string ModuleVersion => "1.9.6 (DEBUG)";
+#endif
+#if RELEASE
+        public override string ModuleVersion => "1.9.6 (RELEASE)";
+#endif
         public override string ModuleAuthor => "abnerfs, Oz-Lin, [ZeRo]XiaoLinWuDi, theextr1m";
         public override string ModuleDescription => "https://github.com/oz-lin/cs2-rockthevote";
 
@@ -37,7 +45,6 @@ namespace cs2_rockthevote
         private readonly NextMapCommand _nextMap;
         private readonly EndMapVoteManager _endMapVoteManager;
         private readonly DisplayMapListCommandHandler _displayMapListCommandHandler;
-        private readonly MapLister _mapLister;
         private readonly ExtendMapCommand _extendMapManager;
         private readonly RevoteCommand _revoteCommand;
 
@@ -83,9 +90,15 @@ namespace cs2_rockthevote
 
         public override void Load(bool hotReload)
         {
+#if DEBUG
+            Logger.LogInformation($"Plugin loading... (hot reload: {hotReload})");
+#endif
             _dependencyManager.OnPluginLoad(this);
             _mapLister.OnLoad(this); // ensure map is loaded
             RegisterListener<OnMapStart>(_dependencyManager.OnMapStart);
+#if DEBUG
+            Logger.LogInformation("Plugin loaded successfully");
+#endif
         }
 
         [GameEventHandler(HookMode.Post)]
@@ -116,9 +129,21 @@ namespace cs2_rockthevote
                     var map = split.Length > 1 ? split[1].Trim() : "";
                     _nominationManager.CommandHandler(player, map);
                 }
+                else if (text.StartsWith("yd"))
+                {
+                    var split = text.Split("yd");
+                    var map = split.Length > 1 ? split[1].Trim() : "";
+                    _nominationManager.CommandHandler(player, map);
+                }
                 else if (text.StartsWith("votemap"))
                 {
                     var split = text.Split("votemap");
+                    var map = split.Length > 1 ? split[1].Trim() : "";
+                    _votemapManager.CommandHandler(player, map);
+                }
+                else if (text.StartsWith("vm"))
+                {
+                    var split = text.Split("vm");
                     var map = split.Length > 1 ? split[1].Trim() : "";
                     _votemapManager.CommandHandler(player, map);
                 }

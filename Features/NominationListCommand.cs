@@ -14,6 +14,8 @@ public partial class Plugin
     public char NewLine = '\u2029';
     [ConsoleCommand("css_nomlist", "Show nominate list")]
     [ConsoleCommand("nomlist", "Show nominate list")]
+    [ConsoleCommand("css_ydb", "Show nominate list")]
+    [ConsoleCommand("ydb", "Show nominate list")]
     public void OnNomlist(CCSPlayerController? player, CommandInfo command)
     {
 

@@ -46,12 +46,13 @@ namespace cs2_rockthevote
         bool CheckMaxRounds()
         {
             //Server.PrintToChatAll($"Remaining rounds {_maxRounds.RemainingRounds}, remaining wins: {_maxRounds.RemainingWins}, triggerBefore {_config.TriggerRoundsBeforeEnd}");
+            // Prevent triggering vote too early
+            if (_gameRules.TotalRoundsPlayed < 1) // This line is a newly added safeguard
+                return false;
             if (_maxRounds.UnlimitedRounds)
                 return false;
-
             if (_maxRounds.RemainingRounds <= _config.TriggerRoundsBeforeEnd)
                 return true;
-
             return _maxRounds.CanClinch && _maxRounds.RemainingWins <= _config.TriggerRoundsBeforeEnd;
         }
 
@@ -65,7 +66,12 @@ namespace cs2_rockthevote
         {
             KillTimer();
             if (_config.Enabled)
-            {        
+            {
+                if (_pluginState.EofVoteHappening)
+                {
+                    Server.PrintToChatAll($"[RockTheVote] End of map vote is already in progress. Cannot start a new vote.");
+                    return;
+                }
                 _voteManager.StartVote(_config);
             }
         }
@@ -97,7 +103,7 @@ namespace cs2_rockthevote
                     {
                         if (_gameRules is not null && !_gameRules.WarmupRunning && !_pluginState.DisableCommands && _timeLimit.TimeRemaining > 0)
                         {
-                            if (CheckTimeLeft())
+                            if (CheckTimeLeft() && !_pluginState.EofVoteHappening)
                                 StartVote();
                         }
                     }, TimerFlags.REPEAT);
@@ -106,8 +112,7 @@ namespace cs2_rockthevote
 
             plugin.RegisterEventHandler<EventRoundStart>((ev, info) =>
             {
-
-                if (!_pluginState.DisableCommands && !_gameRules.WarmupRunning && CheckMaxRounds() && _config.Enabled)
+                if (!_pluginState.DisableCommands && !_gameRules.WarmupRunning && CheckMaxRounds() && _config.Enabled && !_pluginState.EofVoteHappening)
                     StartVote();
                 else if (deathMatch)
                 {

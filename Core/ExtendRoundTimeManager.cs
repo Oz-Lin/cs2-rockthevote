@@ -68,8 +68,9 @@ namespace cs2_rockthevote
             catch (Exception)
             {
                 // Screw it, Oz-Lin is fixing the null reference exception issue for razpberry.
-                //Server.PrintToConsole(_localizer.LocalizeWithPrefix("") + "Null Reference Exception happened, default to 3 extends.");
-
+#if DEBUG
+                Server.PrintToConsole(_localizer.LocalizeWithPrefix("") + "Null Reference Exception happened, default to 3 extends.");
+#endif
                 Server.ExecuteCommand("css_plugins reload RockTheVote"); // screw it!
             }
 
@@ -350,10 +351,11 @@ namespace cs2_rockthevote
 
                 return true;
             }
-            catch (Exception) //(Exception ex)
+            catch (Exception ex) 
             {
-                //Logger.LogWarning("Something went wrong when updating the round time {message}", ex.Message);
-
+#if DEBUG
+                _plugin?.Logger.LogWarning("Something went wrong when updating the round time {message}", ex.Message);
+#endif
                 return false;
             }
 
@@ -375,10 +377,11 @@ namespace cs2_rockthevote
 
                 return true;
             }
-            catch (Exception) //(Exception ex)
+            catch (Exception ex) 
             {
-                //Logger.LogWarning("Something went wrong when updating the round time {message}", ex.Message);
-
+#if DEBUG
+                _plugin?.Logger.LogWarning("Something went wrong when updating the round time {message}", ex.Message);
+#endif
                 return false;
             }
         }

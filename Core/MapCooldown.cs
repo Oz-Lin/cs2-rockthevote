@@ -15,7 +15,7 @@ namespace cs2_rockthevote.Core
             mapLister.EventMapsLoaded += (e, maps) =>
             {
                 var map = Server.MapName;
-                if(map is not null)
+                if (map is not null)
                 {
                     if (InCoolDown == 0)
                     {
@@ -40,6 +40,18 @@ namespace cs2_rockthevote.Core
         public bool IsMapInCooldown(string map)
         {
             return mapsOnCoolDown.IndexOf(map) > -1;
+        }
+
+        public bool AddMapToCooldown(string map)
+        {
+            if (string.IsNullOrEmpty(map) || IsMapInCooldown(map))
+                return false;
+
+            if (mapsOnCoolDown.Count > InCoolDown && InCoolDown > 0)
+                mapsOnCoolDown.RemoveAt(0);
+
+            mapsOnCoolDown.Add(map.Trim().ToLower());
+            return true;
         }
     }
 }

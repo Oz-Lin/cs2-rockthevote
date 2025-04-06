@@ -19,11 +19,14 @@ namespace cs2_rockthevote
 
         public void OnMapStart(string map)
         {
+            bool needsReload = MapChangeScheduled || EofVoteHappening || ExtendTimeVoteHappening || CommandsDisabled;
+
             MapChangeScheduled = false;
             EofVoteHappening = false;
             ExtendTimeVoteHappening = false;
             CommandsDisabled = false;
-            if (MapChangeScheduled || EofVoteHappening || ExtendTimeVoteHappening || CommandsDisabled)
+
+            if (needsReload)
             {
                 Server.ExecuteCommand("css_plugins reload RockTheVote");
             }

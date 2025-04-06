@@ -12,8 +12,8 @@ namespace cs2_rockthevote
     {
         [ConsoleCommand("ext", "Vote to extend current map")]
         [ConsoleCommand("css_ext", "Vote to extend current map")]
-        [ConsoleCommand("extend", "Vote to extend current map")]
-        [ConsoleCommand("css_extend", "Vote to extend current map")]
+        //[ConsoleCommand("extend", "Vote to extend current map")] // conflict with admin extend <minutes>
+        //[ConsoleCommand("css_extend", "Vote to extend current map")] // conflict with admin extend <minutes>
         [ConsoleCommand("extendmap", "Vote to extend current map")]
         [ConsoleCommand("css_extendmap", "Vote to extend current map")]
         public void OnExtend(CCSPlayerController? player, CommandInfo? command)
