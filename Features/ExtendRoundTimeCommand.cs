@@ -40,7 +40,7 @@ namespace cs2_rockthevote
         private readonly ExtendRoundTimeManager _extendRoundTimeManager;
         private readonly GameRules _gameRules;
         private StringLocalizer _localizer;
-        private EndOfMapConfig? _eomConfig = new();
+        private EndOfMapConfig? _eomConfig;
 
         public ExtendRoundTimeCommand(TimeLimitManager timeLimitManager, ExtendRoundTimeManager extendRoundTimeManager, GameRules gameRules, IStringLocalizer stringLocalizer)
         {
@@ -49,6 +49,11 @@ namespace cs2_rockthevote
             _timeLimitManager = timeLimitManager;
             _extendRoundTimeManager = extendRoundTimeManager;
 
+        }
+
+        public void OnConfigParsed(Config config)
+        {
+            _eomConfig = config.EndOfMapVote;
         }
 
         public bool CommandHandler(CCSPlayerController player, CommandInfo commandInfo, int minutesToExtend)

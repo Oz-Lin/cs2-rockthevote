@@ -40,7 +40,7 @@ namespace cs2_rockthevote
         private int _totalExtendLimit;
         private int _canVote = 0;
         private Plugin? _plugin;
-        private VipExtendMapConfig? _veConfig = new();
+        private VipExtendMapConfig? _veConfig;
 
         public bool VoteInProgress => timeLeft >= 0;
 
