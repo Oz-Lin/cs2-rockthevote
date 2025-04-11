@@ -45,7 +45,9 @@ namespace cs2_rockthevote
 
         bool CheckMaxRounds()
         {
-            //Server.PrintToChatAll($"Remaining rounds {_maxRounds.RemainingRounds}, remaining wins: {_maxRounds.RemainingWins}, triggerBefore {_config.TriggerRoundsBeforeEnd}");
+#if DEBUG
+            // Server.PrintToChatAll($"[RTV debug] Remaining rounds {_maxRounds.RemainingRounds}, remaining wins: {_maxRounds.RemainingWins}, triggerBefore {_config.TriggerRoundsBeforeEnd}");
+#endif
             // Prevent triggering vote too early
             if (_gameRules.TotalRoundsPlayed < 1) // This line is a newly added safeguard
                 return false;

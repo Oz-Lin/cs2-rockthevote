@@ -40,7 +40,7 @@ namespace cs2_rockthevote
         private readonly ExtendRoundTimeManager _extendRoundTimeManager;
         private readonly GameRules _gameRules;
         private StringLocalizer _localizer;
-        private EndOfMapConfig _eomConfig = new();
+        private EndOfMapConfig? _eomConfig = new();
 
         public ExtendRoundTimeCommand(TimeLimitManager timeLimitManager, ExtendRoundTimeManager extendRoundTimeManager, GameRules gameRules, IStringLocalizer stringLocalizer)
         {
@@ -48,6 +48,7 @@ namespace cs2_rockthevote
             _localizer = new StringLocalizer(stringLocalizer, "extendtime.prefix");
             _timeLimitManager = timeLimitManager;
             _extendRoundTimeManager = extendRoundTimeManager;
+
         }
 
         public bool CommandHandler(CCSPlayerController player, CommandInfo commandInfo, int minutesToExtend)
@@ -60,9 +61,9 @@ namespace cs2_rockthevote
 
             if (!_timeLimitManager.UnlimitedTime)
             {
-                if (_timeLimitManager.TimeRemaining > 1)
-                {
-                    if (_eomConfig.RoundBased == true)
+                //if (_timeLimitManager.TimeRemaining > 1)
+                //{
+                    if (_eomConfig!.RoundBased == true)
                     {
                         _extendRoundTimeManager.ExtendMapTimeLimit(minutesToExtend, _timeLimitManager, _gameRules);
                     }
@@ -74,12 +75,12 @@ namespace cs2_rockthevote
                     player.PrintToChat(_localizer.LocalizeWithPrefix("extendtime.admin-extend-time", minutesToExtend));
 
                     return true;
-                }
-                else
-                {
-                    player.PrintToChat(_localizer.LocalizeWithPrefix("extendtime.notapplicable"));
-                    return false;
-                }
+                //}
+                //else
+                //{
+                //    player.PrintToChat(_localizer.LocalizeWithPrefix("extendtime.notapplicable"));
+                 //   return false;
+                //}
             }
             else
             {
