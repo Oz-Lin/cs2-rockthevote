@@ -92,7 +92,9 @@ namespace cs2_rockthevote
             {
                 TWins++;
             }
-            //Server.PrintToChatAll($"T Wins {TWins}, CTWins {CTWins}");
+#if DEBUG
+            //Server.PrintToChatAll($"[RTV debug] T Wins {TWins}, CTWins {CTWins}");
+#endif
         }
 
         public void OnMapStart(string map)

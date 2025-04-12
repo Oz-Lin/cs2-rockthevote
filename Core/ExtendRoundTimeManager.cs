@@ -43,7 +43,7 @@ namespace cs2_rockthevote
         private int _totalExtendLimit;
         private int _canVote = 0;
         private Plugin? _plugin;
-        private VipExtendMapConfig _veConfig = new();
+        private VipExtendMapConfig? _veConfig;
 
         public bool VoteInProgress => timeLeft >= 0;
 
@@ -51,6 +51,12 @@ namespace cs2_rockthevote
         {
             _plugin = plugin;
             plugin.RegisterListener<OnTick>(VoteDisplayTick);
+        }
+
+        public void OnConfigParsed(Config config)
+        {
+            _veConfig = config.VipExtendMapVote;
+            _totalExtendLimit = config.VipExtendMapVote.ExtendLimit;
         }
 
         /*
@@ -226,7 +232,7 @@ namespace cs2_rockthevote
         {
             KillTimer();
 
-            var minutesToExtend = _config!.ExtendTimeStep; // use editable extend timer
+
 
             decimal maxVotes = Votes.Select(x => x.Value).Max();
             IEnumerable<KeyValuePair<string, int>> potentialWinners = Votes.Where(x => x.Value == maxVotes);
@@ -244,7 +250,7 @@ namespace cs2_rockthevote
                 }
                 else
                 {
-                    Server.PrintToChatAll(_localizer.LocalizeWithPrefix("extendtime.vote-ended.passed", minutesToExtend, percent, totalVotes));
+                    Server.PrintToChatAll(_localizer.LocalizeWithPrefix("extendtime.vote-ended.passed", _config!.ExtendTimeStep, percent, totalVotes));
                 }
             }
             else
@@ -261,13 +267,13 @@ namespace cs2_rockthevote
             {
                 // Extend mp_timelimit
                 // Use ExtendMapTimeLimit for round-based gamemodes (ze/zm/normal gunfights etc), and ExtendRoundTime for non-round-based gamemodes (bhop/surf/kz/deathmatch etc)
-                if (_veConfig.RoundBased == true)
+                if (_veConfig != null && _veConfig.RoundBased == true)
                 {
-                    ExtendMapTimeLimit(minutesToExtend, _timeLimitManager, _gameRules);
+                    ExtendMapTimeLimit(_config!.ExtendTimeStep, _timeLimitManager, _gameRules);
                 }
                 else
                 {
-                    ExtendRoundTime(minutesToExtend, _timeLimitManager, _gameRules);
+                    ExtendRoundTime(_config!.ExtendTimeStep, _timeLimitManager, _gameRules);
                 }
 
                 PrintCenterTextAll(_localizer.Localize("extendtime.hud.finished", "be extended."));
