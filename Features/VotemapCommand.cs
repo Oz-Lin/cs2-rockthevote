@@ -79,10 +79,10 @@ namespace cs2_rockthevote
                 {
                     AddVote(player, option.Text);
                 }, _mapCooldown.IsMapInCooldown(map.Name));
-                votemapMenu.AddMenuOption("Exit", (CCSPlayerController player, ChatMenuOption option) =>
-                {
-                    MenuManager.CloseActiveMenu(player);
-                });
+                //votemapMenu.AddMenuOption("Exit", (CCSPlayerController player, ChatMenuOption option) =>
+                //{
+                //    MenuManager.CloseActiveMenu(player);
+                //});
 
                 votemapMenuHud.AddMenuOption(map.Name, (CCSPlayerController player, ChatMenuOption option) =>
                 {
