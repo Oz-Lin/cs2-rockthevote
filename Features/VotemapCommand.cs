@@ -196,12 +196,6 @@ namespace cs2_rockthevote
                 return;
             }
 
-            if (votemapScreenMenuHud is null)
-            {
-                player.PrintToChat("Votemap screen menu is not initialized.");
-                return;
-            }
-
             if (_plugin == null)
             {
                 player.PrintToChat("Plugin is not initialized.");
@@ -211,7 +205,10 @@ namespace cs2_rockthevote
             switch (_config.HudMenu)
             {
                 case 2:
-                    votemapScreenMenuHud = CreateVotemapScreenMenu(player); // Assign the menu here
+                    if (votemapScreenMenuHud is null)
+                    {
+                        votemapScreenMenuHud = CreateVotemapScreenMenu(player); // Assign the menu here
+                    }
                     votemapScreenMenuHud.Display();
                     //MenuManager.OpenChatMenu(player, votemapMenu!);
                     break;

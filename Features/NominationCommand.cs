@@ -161,8 +161,8 @@ namespace cs2_rockthevote
 
         private void InitializeMenus()
         {
-            //nominationScreenMenu = CreateNominationScreenMenu();
             nominationMenu = new("Nomination");
+            //nominationScreenMenu = CreateNominationScreenMenu();
         }
 
         private void PopulateMenus()
@@ -254,12 +254,6 @@ namespace cs2_rockthevote
                 return;
             }
 
-            if (nominationScreenMenu is null)
-            {
-                player.PrintToChat("Nomination screen menu is not initialized.");
-                return;
-            }
-
             if (_plugin == null)
             {
                 player.PrintToChat("Plugin is not initialized.");
@@ -269,7 +263,10 @@ namespace cs2_rockthevote
             switch (_config.HudMenu)
             {
                 case 2:
-                    nominationScreenMenu = CreateNominationScreenMenu(player);
+                    if (nominationScreenMenu is null) // Ensure it is initialized
+                    {
+                        nominationScreenMenu = CreateNominationScreenMenu(player);
+                    }
                     nominationScreenMenu.Display();
                     //MenuManager.OpenChatMenu(player, nominationMenu!);
                     break;
