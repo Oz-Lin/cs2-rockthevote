@@ -9,6 +9,7 @@ using System.Drawing;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Text;
+using CS2ScreenMenuAPI;
 using static CounterStrikeSharp.API.Core.Listeners;
 using Timer = CounterStrikeSharp.API.Modules.Timers.Timer;
 
@@ -156,8 +157,8 @@ namespace cs2_rockthevote
         {
             if (_eomConfig!.HudMenu == 2)
             {
-                var sMenu = CreateMapVoteScreenMenu();
-                MenuAPI.OpenMenu(_plugin!, player, sMenu);
+                var menu = CreateMapVoteScreenMenu(player);
+                menu.Display();
             }
             if (_eomConfig!.HudMenu == 1)
             {
@@ -185,7 +186,7 @@ namespace cs2_rockthevote
             }
 
             int mapsToShow = _config!.MapsToShow == 0 ? MAX_OPTIONS_HUD_MENU : _config!.MapsToShow;
-            if (_config.HudMenu && mapsToShow > MAX_OPTIONS_HUD_MENU)
+            if (_config.HudMenu > 0 && mapsToShow > MAX_OPTIONS_HUD_MENU)
                 mapsToShow = MAX_OPTIONS_HUD_MENU;
 
             foreach (var map in mapsEllected.Take((_eomConfig != null && _eomConfig.AllowExtend && (_eomConfig.ExtendLimit > 0 || _eomConfig.ExtendLimit == -1)) ? (mapsToShow - 1) : mapsToShow))
@@ -204,29 +205,32 @@ namespace cs2_rockthevote
             return cMenu;
         }
 
-        private ScreenMenu CreateMapVoteScreenMenu()
+        private Menu CreateMapVoteScreenMenu(CCSPlayerController player)
         {
-            ScreenMenu sMenu = new ScreenMenu(_localizer.Localize("emv.hud.menu-title"), _plugin!) // Creating the menu
+            Menu sMenu = new Menu(player, _plugin!)
             {
-                PostSelectAction = CS2ScreenMenuAPI.Enums.PostSelectAction.Close,
-                IsSubMenu = false, // this is not a sub menu
-                //TextColor = Color.DarkOrange, // if this not set it will be the API default color
-                //FontName = "Impact",
-                //MenuType = MenuType.KeyPress// IF you wanna use both types you don't need to add this since default value is using Both Types.
+                Title = _localizer.Localize("emv.hud.menu-title"),
+                PostSelect = PostSelect.Close,
+                HasExitButon = true
             };
             if (_eomConfig != null && _eomConfig.AllowExtend && (_eomConfig.ExtendLimit > 0 || _eomConfig.ExtendLimit == -1))
             {
                 Votes[_localizer.Localize("general.extend-current-map")] = 0;
-                sMenu.AddOption(_localizer.Localize("general.extend-current-map"), (player, option) =>
+                sMenu.AddItem(_localizer.Localize("general.extend-current-map"), (player, option) =>
                 {
                     MapVoted(player, _localizer.Localize("general.extend-current-map"));
                     // MenuManager.CloseActiveMenu(player);
                 });
             }
-            foreach (var map in mapsEllected.Take((_eomConfig != null && _eomConfig.AllowExtend && (_eomConfig.ExtendLimit > 0 || _eomConfig.ExtendLimit == -1)) ? (MAX_OPTIONS_HUD_MENU - 1) : MAX_OPTIONS_HUD_MENU))
+
+            int mapsToShow = _config!.MapsToShow == 0 ? MAX_OPTIONS_HUD_MENU : _config!.MapsToShow;
+            if (_config.HudMenu > 0 && mapsToShow > MAX_OPTIONS_HUD_MENU)
+                mapsToShow = MAX_OPTIONS_HUD_MENU;
+
+            foreach (var map in mapsEllected.Take((_eomConfig != null && _eomConfig.AllowExtend && (_eomConfig.ExtendLimit > 0 || _eomConfig.ExtendLimit == -1)) ? (mapsToShow - 1) : mapsToShow))
             {
                 Votes[map] = 0;
-                sMenu.AddOption(map, (player, option) =>
+                sMenu.AddItem(map, (player, option) =>
                 {
                     MapVoted(player, map);
                     // MenuManager.CloseActiveMenu(player);
@@ -445,21 +449,22 @@ namespace cs2_rockthevote
                 mapsEllected = _nominationManager.NominationWinners().Concat(mapsScrambled).Distinct().ToList();
 
             _canVote = ServerManager.ValidPlayerCount();
-            
-            if (_eomConfig!.HudMenu == 2)
+            foreach (var player in ServerManager.ValidPlayers())
             {
-                var menu = CreateMapVoteScreenMenu();
-                foreach (var player in ServerManager.ValidPlayers())
-                    MenuAPI.OpenMenu(_plugin!, player, menu);
-            }
-            if (_eomConfig!.HudMenu == 0 || _eomConfig!.HudMenu == 1)
-            {
-                var menu = CreateMapVoteMenu();
-                foreach (var player in ServerManager.ValidPlayers())
+                if (_eomConfig!.HudMenu == 2)
+                {
+                    var menu = CreateMapVoteScreenMenu(player);
+                    menu.Display();
+                }
+
+                if (_eomConfig!.HudMenu == 0 || _eomConfig!.HudMenu == 1)
+                {
+                    var menu = CreateMapVoteMenu();
                     MenuManager.OpenChatMenu(player!, menu);
+                }
             }
 
-                timeLeft = _config.VoteDuration;
+            timeLeft = _config.VoteDuration;
 
                 // Kill any existing timer to avoid duplicates
                 //KillTimer(); // the KillTimer here flawed the countdown timer
@@ -483,7 +488,7 @@ namespace cs2_rockthevote
                                 _plugin?.Logger.LogWarning($"Vote timer safety triggered: Vote has been running too long. Forcing end.");
 #endif
                                 EndVote();
-                                if (_eomConfig.HudMenu == 2)
+                                if (_eomConfig!.HudMenu == 2)
                                 {
                                     foreach (var player in Utilities.GetPlayers())
                                         if (player != null)

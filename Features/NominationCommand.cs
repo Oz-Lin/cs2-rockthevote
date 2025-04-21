@@ -9,8 +9,8 @@ using CounterStrikeSharp.API.Modules.Admin;
 using CounterStrikeSharp.API.Modules.Utils;
 using cs2_rockthevote.Core;
 using CS2ScreenMenuAPI;
-using CS2ScreenMenuAPI.Enums;
-using CS2ScreenMenuAPI.Internal;
+//using CS2ScreenMenuAPI.Enums;
+//using CS2ScreenMenuAPI.Internal;
 using Microsoft.Extensions.Logging;
 using System.Drawing;
 using System.Numerics;
@@ -118,7 +118,7 @@ namespace cs2_rockthevote
     {
         private Dictionary<int, (string PlayerName, List<string> Maps)> Nominations = new();
         private ChatMenu? nominationMenu = null;
-        private ScreenMenu? nominationScreenMenu = null;
+        private Menu? nominationScreenMenu = null;
         private RtvConfig _config = new();
         private GameRules _gamerules;
         private StringLocalizer _localizer;
@@ -161,7 +161,7 @@ namespace cs2_rockthevote
 
         private void InitializeMenus()
         {
-            nominationScreenMenu = CreateNominationScreenMenu();
+            //nominationScreenMenu = CreateNominationScreenMenu();
             nominationMenu = new("Nomination");
         }
 
@@ -187,17 +187,18 @@ namespace cs2_rockthevote
             }, _mapCooldown.IsMapInCooldown(mapName));
         }
 
-        private ScreenMenu CreateNominationScreenMenu()
+        private Menu CreateNominationScreenMenu(CCSPlayerController player)
         {
-            ScreenMenu screenMenu = new ScreenMenu("Nomination", _plugin!)
+            Menu screenMenu = new Menu(player, _plugin!)
             {
-                PostSelectAction = CS2ScreenMenuAPI.Enums.PostSelectAction.Close,
-                IsSubMenu = false
+                Title = "Nomination",
+                PostSelect = PostSelect.Close,
+                HasExitButon = true
             };
 
             foreach (var map in _mapLister.Maps!.Where(x => x.Name != Server.MapName))
             {
-                screenMenu.AddOption(map.Name, (player, option) =>
+                screenMenu.AddItem(map.Name, (player, option) =>
                 {
                     Nominate(player, option.Text);
                 }, _mapCooldown.IsMapInCooldown(map.Name));
@@ -253,7 +254,7 @@ namespace cs2_rockthevote
                 return;
             }
 
-            if (nominationScreenMenu == null)
+            if (nominationScreenMenu is null)
             {
                 player.PrintToChat("Nomination screen menu is not initialized.");
                 return;
@@ -268,8 +269,9 @@ namespace cs2_rockthevote
             switch (_config.HudMenu)
             {
                 case 2:
-                    MenuAPI.OpenMenu(_plugin!, player, nominationScreenMenu!);
-                    MenuManager.OpenChatMenu(player, nominationMenu!);
+                    nominationScreenMenu = CreateNominationScreenMenu(player);
+                    nominationScreenMenu.Display();
+                    //MenuManager.OpenChatMenu(player, nominationMenu!);
                     break;
                 case 1:
                 case 0:

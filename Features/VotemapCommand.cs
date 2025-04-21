@@ -7,9 +7,9 @@ using CounterStrikeSharp.API.Modules.Menu;
 using cs2_rockthevote.Core;
 using Microsoft.Extensions.Localization;
 using CS2ScreenMenuAPI;
-using CS2ScreenMenuAPI.Enums;
-using CS2ScreenMenuAPI.Internal;
-using CS2ScreenMenuAPI.Interfaces;
+//using CS2ScreenMenuAPI.Enums;
+//using CS2ScreenMenuAPI.Internal;
+//using CS2ScreenMenuAPI.Interfaces;
 using Microsoft.Extensions.Logging;
 using CounterStrikeSharp.API.Modules.Memory;
 using CounterStrikeSharp.API.Modules.Utils;
@@ -45,7 +45,7 @@ namespace cs2_rockthevote
         private Dictionary<string, AsyncVoteManager> VotedMaps = new();
         private ChatMenu? votemapMenu = null;
         private CenterHtmlMenu? votemapMenuHud = null;
-        private ScreenMenu? votemapScreenMenuHud = null;
+        private Menu? votemapScreenMenuHud = null;
         private VotemapConfig _config = new();
         private GameRules _gamerules;
         private StringLocalizer _localizer;
@@ -92,7 +92,7 @@ namespace cs2_rockthevote
 #pragma warning disable CS0618 // Type or member is obsolete
             votemapMenuHud = new("VoteMap");
 #pragma warning restore CS0618 // Type or member is obsolete
-            votemapScreenMenuHud = CreateVotemapScreenMenu();
+            //votemapScreenMenuHud = CreateVotemapScreenMenu(CCSPlayerController player);
         }
 
         private void PopulateMenus()
@@ -101,7 +101,7 @@ namespace cs2_rockthevote
             {
                 AddMenuOption(votemapMenu, map.Name);
                 AddHTMLMenuOption(votemapMenuHud, map.Name);
-                AddScreenMenuOption(votemapScreenMenuHud, map.Name);
+                //AddScreenMenuOption(votemapScreenMenuHud, map.Name);
             }
         }
 
@@ -120,32 +120,33 @@ namespace cs2_rockthevote
             }, _mapCooldown.IsMapInCooldown(mapName));
         }
 
-        private void AddScreenMenuOption(ScreenMenu? menu, string mapName)
-        {
-            menu?.AddOption(mapName, (player, option) =>
-            {
-                AddVote(player, mapName);
-                MenuAPI.CloseActiveMenu(player);
-            }, _mapCooldown.IsMapInCooldown(mapName));
-        }
+        //private void AddScreenMenuOption(Menu? menu, string mapName)
+        //{
+        //    menu?.AddItem(mapName, (player, option) =>
+        //    {
+        //        AddVote(player, mapName);
+        //        //MenuAPI.CloseActiveMenu(player);
+        //    }, _mapCooldown.IsMapInCooldown(mapName));
+        //}
 
-        private ScreenMenu CreateVotemapScreenMenu()
+        private Menu CreateVotemapScreenMenu(CCSPlayerController player)
         {
-            ScreenMenu screenMenu = new ScreenMenu("Votemap", _plugin!)
+            Menu menu = new Menu(player, _plugin!)
             {
-                PostSelectAction = CS2ScreenMenuAPI.Enums.PostSelectAction.Close,
-                IsSubMenu = false
+                Title = "Votemap",
+                PostSelect = PostSelect.Close,
+                HasExitButon = true
             };
 
             foreach (var map in _mapLister.Maps!.Where(x => x.Name != Server.MapName))
             {
-                screenMenu.AddOption(map.Name, (player, option) =>
+                menu.AddItem(map.Name, (player, option) =>
                 {
                     AddVote(player, map.Name);
                 }, _mapCooldown.IsMapInCooldown(map.Name));
             }
 
-            return screenMenu;
+            return menu;
         }
 
         public void CommandHandler(CCSPlayerController? player, string map)
@@ -195,7 +196,7 @@ namespace cs2_rockthevote
                 return;
             }
 
-            if (votemapScreenMenuHud == null)
+            if (votemapScreenMenuHud is null)
             {
                 player.PrintToChat("Votemap screen menu is not initialized.");
                 return;
@@ -210,8 +211,9 @@ namespace cs2_rockthevote
             switch (_config.HudMenu)
             {
                 case 2:
-                    MenuAPI.OpenMenu(_plugin!, player, votemapScreenMenuHud!);
-                    MenuManager.OpenChatMenu(player, votemapMenu!);
+                    votemapScreenMenuHud = CreateVotemapScreenMenu(player); // Assign the menu here
+                    votemapScreenMenuHud.Display();
+                    //MenuManager.OpenChatMenu(player, votemapMenu!);
                     break;
                 case 1:
                     MenuManager.OpenCenterHtmlMenu(_plugin!, player, votemapMenuHud!);
