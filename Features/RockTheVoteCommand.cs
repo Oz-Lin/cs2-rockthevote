@@ -1,9 +1,10 @@
-﻿using CounterStrikeSharp.API;
+using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
 using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Utils;
 using Microsoft.Extensions.Logging;
+using cs2_rockthevote.Core;
 
 namespace cs2_rockthevote
 {
@@ -61,14 +62,21 @@ namespace cs2_rockthevote
         private RtvConfig _config = new();
         private AsyncVoteManager? _voteManager;
         private Plugin? _plugin;
+        private readonly RtvVoteCooldown _voteCooldown;
         public bool VotesAlreadyReached => _voteManager!.VotesAlreadyReached;
+        public int CooldownSecondsRemaining => _voteCooldown.RemainingSeconds(_config.VoteCooldownTime);
 
         public RockTheVoteCommand(GameRules gameRules, EndMapVoteManager endmapVoteManager, StringLocalizer localizer, PluginState pluginState)
+            : this(gameRules, endmapVoteManager, localizer, pluginState, TimeProvider.System) { }
+
+        public RockTheVoteCommand(GameRules gameRules, EndMapVoteManager endmapVoteManager, StringLocalizer localizer, PluginState pluginState, TimeProvider clock)
         {
             _localizer = localizer;
             _gameRules = gameRules;
             _endMapVoteManager = endmapVoteManager;
             _pluginState = pluginState;
+            _voteCooldown = new RtvVoteCooldown(clock);
+            _endMapVoteManager.RtvVoteCompleted += (sender, args) => _voteCooldown.RecordCompletedVote();
             //_extendConfig = new EndMapVoteManager(); // Initialize _extendConfig (added from copilot, need to check later)
         }
 
@@ -79,10 +87,9 @@ namespace cs2_rockthevote
 
         public void OnMapStart(string map)
         {
-            var newMapWaitingPeriod = new CounterStrikeSharp.API.Modules.Timers.Timer(20.0f, () =>
-            {
-                _voteManager!.OnMapStart(map);
-            });
+            // This reset is entirely managed. A delayed native timer could erase new
+            // requests or run in a later map; retain the separate completion cooldown.
+            _voteManager?.OnMapStart(map);
         }
 
         public void CommandServerHandler(CCSPlayerController? player, CommandInfo command)
@@ -94,6 +101,13 @@ namespace cs2_rockthevote
             if (_pluginState.DisableCommands || !_config.Enabled)
             {
                 Console.WriteLine(_localizer.LocalizeWithPrefix("general.validation.disabled"));
+                return;
+            }
+
+            var cooldownRemaining = CooldownSecondsRemaining;
+            if (cooldownRemaining > 0)
+            {
+                Console.WriteLine(_localizer.LocalizeWithPrefix("general.validation.wait-seconds", cooldownRemaining));
                 return;
             }
 
@@ -138,6 +152,13 @@ namespace cs2_rockthevote
                 }
 
                 player.PrintToChat(_localizer.LocalizeWithPrefix("general.validation.disabled"));
+                return;
+            }
+
+            var cooldownRemaining = CooldownSecondsRemaining;
+            if (cooldownRemaining > 0)
+            {
+                player.PrintToChat(_localizer.LocalizeWithPrefix("general.validation.wait-seconds", cooldownRemaining));
                 return;
             }
 

@@ -62,6 +62,16 @@ public sealed class MapVotePolicy
         return true;
     }
 
+    // This is the live completion producer: only a resolved, current RTV ballot emits.
+    // The latch is already retired before notification, so reentrant/duplicate end is inert.
+    public bool TryEndAndNotify(long generation, Func<int, int> chooseIndex, bool isRtv,
+        Action notify, out MapVoteResult? result)
+    {
+        if (!TryEnd(generation, chooseIndex, out result)) return false;
+        if (isRtv && result != null) notify();
+        return true;
+    }
+
     public void Reset()
     {
         Active = false;

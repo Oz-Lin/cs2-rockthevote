@@ -32,8 +32,8 @@ namespace cs2_rockthevote
         private Map[] _maps = Array.Empty<Map>();
         private Config? _config;
         private bool _stopped;
-        private CounterStrikeSharp.API.Modules.Timers.Timer? _changeTimer;
-        private CounterStrikeSharp.API.Modules.Timers.Timer? _matchEndTimer;
+        private readonly OneShotTimerSlot<CounterStrikeSharp.API.Modules.Timers.Timer> _changeTimer = new();
+        private readonly OneShotTimerSlot<CounterStrikeSharp.API.Modules.Timers.Timer> _matchEndTimer = new();
         private const string DEFAULT_PREFIX = "rtv.prefix";
         public string? NextMap => _transition.Current?.Target.Name;
 
@@ -77,11 +77,17 @@ namespace cs2_rockthevote
             _transition.Schedule(target, mapEnd, prefix);
             _pluginState.MapChangeScheduled = true;
         }
-        public void OnMapStart(string map) => ResetForMapChange();
+        public void OnMapStart(string map)
+        {
+            // CSS has already deleted STOP_ON_MAPCHANGE timers before this callback.
+            _transition.Reset(); _pluginState.MapChangeScheduled = false; _nextLevel.Abandon();
+            _changeTimer.Abandon(timer => PluginTimers.Forget(_plugin, timer));
+            _matchEndTimer.Abandon(timer => PluginTimers.Forget(_plugin, timer));
+        }
         private void CancelTimers()
         {
-            CleanupActions.Run(() => { _changeTimer?.Kill(); _changeTimer = null; },
-                () => { _matchEndTimer?.Kill(); _matchEndTimer = null; });
+            CleanupActions.Run(() => _changeTimer.Cancel(timer => PluginTimers.Kill(_plugin, timer)),
+                () => _matchEndTimer.Cancel(timer => PluginTimers.Kill(_plugin, timer)));
         }
         private void ResetForMapChange()
         {
@@ -103,8 +109,11 @@ namespace cs2_rockthevote
             if (ticket == null) return false;
             _pluginState.MapChangeScheduled = false;
             Server.PrintToChatAll(_localizer.LocalizeWithPrefixInternal(ticket.Prefix, "general.changing-map", ticket.Target.Name));
-            _changeTimer = _plugin!.AddTimer(3.0F, () =>
+            CounterStrikeSharp.API.Modules.Timers.Timer? ownedTimer = null;
+            ownedTimer = _plugin!.AddTimer(3.0F, () =>
             {
+                _changeTimer.Retire(ownedTimer!);
+                PluginTimers.Forget(_plugin, ownedTimer!);
                 if (_stopped || !_transition.TryExecute(ticket)) return;
                 try
                 {
@@ -114,6 +123,7 @@ namespace cs2_rockthevote
                 }
                 catch (Exception e) { _plugin.Logger.LogError(e, "Map transition failed for {Map}.", ticket.Target.Name); }
             }, CounterStrikeSharp.API.Modules.Timers.TimerFlags.STOP_ON_MAPCHANGE);
+            _changeTimer.Assign(ownedTimer);
             return true;
         }
         public void OnConfigParsed(Config config) => _config = config;
@@ -128,11 +138,15 @@ namespace cs2_rockthevote
                 {
                     float configured = _config?.EndOfMapVote.DelayToChangeInTheEnd ?? 6F;
                     float delay = float.IsFinite(configured) ? Math.Max(0, configured - 3F) : 3F;
-                    _matchEndTimer?.Kill();
-                    _matchEndTimer = plugin.AddTimer(delay, () =>
+                    _matchEndTimer.Cancel(timer => PluginTimers.Kill(_plugin, timer));
+                    CounterStrikeSharp.API.Modules.Timers.Timer? ownedTimer = null;
+                    ownedTimer = plugin.AddTimer(delay, () =>
                     {
+                        _matchEndTimer.Retire(ownedTimer!);
+                        PluginTimers.Forget(_plugin, ownedTimer!);
                         if (!_stopped && _transition.IsCurrent(ticket)) ChangeNextMap(true);
                     }, CounterStrikeSharp.API.Modules.Timers.TimerFlags.STOP_ON_MAPCHANGE);
+                    _matchEndTimer.Assign(ownedTimer);
                 }
                 return HookResult.Continue;
             }, HookMode.Post);

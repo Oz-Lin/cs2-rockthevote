@@ -130,3 +130,31 @@ public static class CleanupActions
         if (errors.Count != 0) throw new AggregateException(errors);
     }
 }
+
+// Timer wrappers contain native pointers, not entity handles with serial numbers.
+// Retire an executed one-shot before its native pointer may be reused.
+public sealed class OneShotTimerSlot<T> where T : class
+{
+    private T? _owned;
+    public bool Pending => _owned != null;
+    public void Assign(T timer)
+    {
+        if (_owned != null) throw new InvalidOperationException("A one-shot timer is already owned.");
+        _owned = timer;
+    }
+    public void Retire(T timer)
+    {
+        if (ReferenceEquals(_owned, timer)) _owned = null;
+    }
+    public void Abandon(Action<T> forget)
+    {
+        if (_owned != null) forget(_owned);
+        _owned = null;
+    }
+    public void Cancel(Action<T> cancel)
+    {
+        if (_owned == null) return;
+        cancel(_owned);
+        _owned = null; // Failed cancellation retains ownership for retry.
+    }
+}

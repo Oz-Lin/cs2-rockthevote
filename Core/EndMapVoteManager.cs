@@ -75,6 +75,10 @@ namespace cs2_rockthevote
         private readonly HashSet<uint> _voted = new();
 
         public bool VoteInProgress => _vote.Active;
+        public bool MapTransitionPending => _changeMapManager.NextMap != null;
+        public event EventHandler? RtvVoteCompleted;
+        public event EventHandler? MapVoteStarted;
+        public event EventHandler? ExtensionUpdated;
 
         public void OnLoad(Plugin plugin)
         {
@@ -131,7 +135,11 @@ namespace cs2_rockthevote
                 _config = _configBackup;
                 _configBackup = null;
             }
-            CleanupActions.Run(KillTimer, CloseVoteMenus);
+            // Native map cleanup has already removed the old STOP timer.
+            if (Timer != null) PluginTimers.Forget(_plugin, Timer);
+            Timer = null;
+            timeLeft = -1;
+            CloseVoteMenus();
         }
 
         public void MapVoted(CCSPlayerController player, string mapName)
@@ -283,7 +291,7 @@ namespace cs2_rockthevote
             // Logical state is retired even if the native timer cannot be killed yet.
             timeLeft = -1;
             _pluginState.EofVoteHappening = false;
-            if (Timer is not null) { Timer.Kill(); Timer = null; }
+            if (Timer is not null) { PluginTimers.Kill(_plugin, Timer); Timer = null; }
         }
 
         void PrintCenterTextAll(string text)
@@ -327,7 +335,8 @@ namespace cs2_rockthevote
             if (!_vote.IsCurrent(generation)) return;
             try
             {
-                if (!_vote.TryEnd(generation, Random.Shared.Next, out var result)) return;
+                if (!_vote.TryEndAndNotify(generation, Random.Shared.Next, _config is RtvConfig,
+                    () => RtvVoteCompleted?.Invoke(this, EventArgs.Empty), out var result)) return;
                 bool mapEnd = _config is EndOfMapConfig;
                 KillTimer();
                 CloseVoteMenus();
@@ -357,18 +366,21 @@ namespace cs2_rockthevote
                     _changeMapManager.CancelScheduledChange();
                     if (_config != null)
                     {
+                        bool extensionUpdated = false;
                         if (_config.ExtendTimeStep > 0 && !_timeLimitManager.UnlimitedTime)
                         {
                             if (_eomConfig!.RoundBased == true)
                             {
-                                _extendRoundTimeManager.ExtendMapTimeLimit(_config.ExtendTimeStep, _timeLimitManager, _gameRules);
+                                extensionUpdated = _extendRoundTimeManager.ExtendMapTimeLimit(_config.ExtendTimeStep, _timeLimitManager, _gameRules);
                             }
                             else
                             {
-                                _extendRoundTimeManager.ExtendRoundTime(_config.ExtendTimeStep, _timeLimitManager, _gameRules);
+                                extensionUpdated = _extendRoundTimeManager.ExtendRoundTime(_config.ExtendTimeStep, _timeLimitManager, _gameRules);
                             }
-                            Server.PrintToChatAll(_localizer.LocalizeWithPrefix("extendtime.vote-ended.passed",
-                                _config.ExtendTimeStep, percent, totalVotes));
+                            if (extensionUpdated)
+                                Server.PrintToChatAll(_localizer.LocalizeWithPrefix("extendtime.vote-ended.passed",
+                                    _config.ExtendTimeStep, percent, totalVotes));
+                            else _plugin?.Logger.LogWarning("The requested map time extension failed.");
 #if DEBUG
                             _plugin?.Logger.LogInformation($"EndVote: Extended map time by {_config.ExtendTimeStep} minutes");
 #endif
@@ -377,6 +389,7 @@ namespace cs2_rockthevote
                         {
                             _roundLimitManager.RoundsRemaining =
                                 _roundLimitManager.RoundLimitValue + _config.ExtendRoundStep;
+                            extensionUpdated = true;
                             Server.PrintToChatAll(_localizer.LocalizeWithPrefix("extendtime.vote-ended.passed.rounds",
                                 _config.ExtendRoundStep, percent, totalVotes));
 #if DEBUG
@@ -396,6 +409,7 @@ namespace cs2_rockthevote
 
                         _nominationManager.ResetNominations();
                         _nominationManager.Nomlist.Clear();
+                        if (extensionUpdated) ExtensionUpdated?.Invoke(this, EventArgs.Empty);
                     }
                 }
                 else
@@ -474,11 +488,12 @@ namespace cs2_rockthevote
 
 
                 var mapsScrambled = Shuffle(new Random(),
-                    _mapLister.Maps!.Select(x => x.Name).Where(x => x != Server.MapName && !_mapCooldown.IsMapInCooldown(x))
+                    _mapLister.Maps!.Select(x => x.Name).Where(x => !_mapCooldown.IsCurrentMap(x) && !_mapCooldown.IsMapInCooldown(x))
                         .ToList());
                 mapsEllected = _nominationManager.NominationWinners().Concat(mapsScrambled).Distinct().ToList();
 
                 var generation = _vote.Begin(GetVoteOptions());
+                if (Votes.Count > 0) MapVoteStarted?.Invoke(this, EventArgs.Empty);
                 // Main's single EndOfMapVote option also governs RTV ballots in this shared manager.
                 _pause.AcquireIfEnabled(generation, _mapGeneration, _eomConfig!.PauseMatchWhenVote, () =>
                 {

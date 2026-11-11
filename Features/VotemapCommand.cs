@@ -82,7 +82,7 @@ namespace cs2_rockthevote
         public void OnMapsLoaded(object? sender, Map[] maps)
         {
             InitializeMenus();
-            PopulateMenus();
+            PopulateMenus(maps);
         }
 
         private void InitializeMenus()
@@ -94,9 +94,9 @@ namespace cs2_rockthevote
             //votemapScreenMenuHud = CreateVotemapScreenMenu(CCSPlayerController player);
         }
 
-        private void PopulateMenus()
+        private void PopulateMenus(IEnumerable<Map> maps)
         {
-            foreach (var map in _mapLister.Maps!.Where(x => x.Name != Server.MapName))
+            foreach (var map in maps.Where(x => !_mapCooldown.IsCurrentMap(x.Name)))
             {
                 AddMenuOption(votemapMenu, map.Name);
                 AddHTMLMenuOption(votemapMenuHud, map.Name);
@@ -137,7 +137,7 @@ namespace cs2_rockthevote
                 HasExitButon = true
             };
 
-            foreach (var map in _mapLister.Maps!.Where(x => x.Name != Server.MapName))
+            foreach (var map in _mapLister.Maps!.Where(x => !_mapCooldown.IsCurrentMap(x.Name)))
             {
                 menu.AddItem(map.Name, (player, option) =>
                 {
@@ -220,22 +220,22 @@ namespace cs2_rockthevote
 
         private void AddVote(CCSPlayerController player, string map)
         {
-            if (map == Server.MapName)
+            string matchingMap = _mapLister.GetSingleMatchingMapName(map, player, _localizer);
+
+            if (matchingMap == "")
+                return;
+
+            if (_mapCooldown.IsCurrentMap(matchingMap))
             {
                 player.PrintToChat(_localizer.LocalizeWithPrefix("general.validation.current-map"));
                 return;
             }
 
-            if (_mapCooldown.IsMapInCooldown(map))
+            if (_mapCooldown.IsMapInCooldown(matchingMap))
             {
                 player.PrintToChat(_localizer.LocalizeWithPrefix("general.validation.map-played-recently"));
                 return;
             }
-
-            string matchingMap = _mapLister.GetSingleMatchingMapName(map, player, _localizer);
-
-            if (matchingMap == "")
-                return;
 
             var userId = player.UserId!.Value;
             if (!VotedMaps.ContainsKey(matchingMap))

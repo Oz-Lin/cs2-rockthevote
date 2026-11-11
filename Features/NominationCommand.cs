@@ -155,7 +155,7 @@ namespace cs2_rockthevote
         public void OnMapsLoaded(object? sender, Map[] maps)
         {
             InitializeMenus();
-            PopulateMenus();
+            PopulateMenus(maps);
         }
 
         private void InitializeMenus()
@@ -164,9 +164,9 @@ namespace cs2_rockthevote
             //nominationScreenMenu = CreateNominationScreenMenu();
         }
 
-        private void PopulateMenus()
+        private void PopulateMenus(IEnumerable<Map> maps)
         {
-            foreach (var map in _mapLister.Maps!.Where(x => x.Name != Server.MapName))
+            foreach (var map in maps.Where(x => !_mapCooldown.IsCurrentMap(x.Name)))
             {
                 AddMenuOption(nominationMenu, map.Name);
             }
@@ -195,7 +195,7 @@ namespace cs2_rockthevote
                 HasExitButon = true
             };
 
-            foreach (var map in _mapLister.Maps!.Where(x => x.Name != Server.MapName))
+            foreach (var map in _mapLister.Maps!.Where(x => !_mapCooldown.IsCurrentMap(x.Name)))
             {
                 screenMenu.AddItem(map.Name, (player, option) =>
                 {
@@ -280,7 +280,7 @@ namespace cs2_rockthevote
             if (matchingMap == "")
                 return;
 
-            if (matchingMap.Equals(Server.MapName, StringComparison.OrdinalIgnoreCase))
+            if (_mapCooldown.IsCurrentMap(matchingMap))
             {
                 player.PrintToChat(_localizer.LocalizeWithPrefix("general.validation.current-map"));
                 return;

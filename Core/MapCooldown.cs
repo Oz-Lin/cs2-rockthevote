@@ -4,54 +4,40 @@ namespace cs2_rockthevote.Core
 {
     public class MapCooldown : IPluginDependency<Plugin, Config>
     {
-        List<string> mapsOnCoolDown = new();
-        private ushort InCoolDown = 0;
+        private readonly MapCooldownPolicy _policy = new();
 
         public event EventHandler<Map[]>? EventCooldownRefreshed;
 
         public MapCooldown(MapLister mapLister)
         {
-            //this is called on map start
-            mapLister.EventMapsLoaded += (e, maps) =>
-            {
-                var map = Server.MapName;
-                if (map is not null)
-                {
-                    if (InCoolDown == 0)
-                    {
-                        mapsOnCoolDown.Clear();
-                        return;
-                    }
+            mapLister.EventMapsLoaded += (sender, maps) => RefreshMaps(maps, Server.MapName);
+        }
 
-                    if (mapsOnCoolDown.Count > InCoolDown)
-                        mapsOnCoolDown.RemoveAt(0);
-
-                    mapsOnCoolDown.Add(map.Trim().ToLower());
-                    EventCooldownRefreshed?.Invoke(this, maps);
-                }
-            };
+        public void RefreshMaps(Map[] maps, string? currentMap)
+        {
+            _policy.Refresh(maps, currentMap);
+            // Consumers initialize chat/HTML menus here even when cooldown is off
+            // or the engine has not provided a current map name yet.
+            EventCooldownRefreshed?.Invoke(this, maps);
         }
 
         public void OnConfigParsed(Config config)
         {
-            InCoolDown = config.MapsInCoolDown;
+            _policy.Configure(config.MapsInCoolDown);
         }
 
         public bool IsMapInCooldown(string map)
         {
-            return mapsOnCoolDown.IndexOf(map) > -1;
+            return _policy.Contains(map);
         }
+
+        public bool IsCurrentMap(string map) => _policy.IsCurrentMap(map);
+
+        public bool AreSameMap(string? first, string? second) => _policy.AreSameMap(first, second);
 
         public bool AddMapToCooldown(string map)
         {
-            if (string.IsNullOrEmpty(map) || IsMapInCooldown(map))
-                return false;
-
-            if (mapsOnCoolDown.Count > InCoolDown && InCoolDown > 0)
-                mapsOnCoolDown.RemoveAt(0);
-
-            mapsOnCoolDown.Add(map.Trim().ToLower());
-            return true;
+            return _policy.Add(map);
         }
     }
 }

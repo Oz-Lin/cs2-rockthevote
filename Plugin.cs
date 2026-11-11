@@ -26,7 +26,7 @@ namespace cs2_rockthevote
     public partial class Plugin : BasePlugin, IPluginConfig<Config>
     {
         public override string ModuleName => "RockTheVote";
-        public override string ModuleVersion => "1.9.7-css379-mainfixes";
+        public override string ModuleVersion => "1.9.7-css379-votefixes";
         public override string ModuleAuthor => "abnerfs, Oz-Lin, [ZeRo]XiaoLinWuDi, theextr1m";
         public override string ModuleDescription => "https://github.com/oz-lin/cs2-rockthevote";
 
@@ -44,6 +44,9 @@ namespace cs2_rockthevote
         private readonly DisplayMapListCommandHandler _displayMapListCommandHandler;
         private readonly ExtendMapCommand _extendMapManager;
         private readonly RevoteCommand _revoteCommand;
+        private readonly EndOfMapVote _endOfMapVote;
+        private readonly ExtendRoundTimeManager _extendVoteManager;
+        private readonly GameRules _gameRules;
 
         public Plugin(DependencyManager<Plugin, Config> dependencyManager,
             NominationCommand nominationManager,
@@ -59,7 +62,8 @@ namespace cs2_rockthevote
             DisplayMapListCommandHandler displayMapListCommandHandler,
             MapLister mapLister,
             ExtendMapCommand extendMapManager,
-            RevoteCommand revoteCommand)
+            RevoteCommand revoteCommand, EndOfMapVote endOfMapVote,
+            ExtendRoundTimeManager extendVoteManager, GameRules gameRules)
         {
             _dependencyManager = dependencyManager;
             _nominationManager = nominationManager;
@@ -76,6 +80,8 @@ namespace cs2_rockthevote
             _mapLister = mapLister;
             _extendMapManager = extendMapManager;
             _revoteCommand = revoteCommand;
+            _endOfMapVote = endOfMapVote;
+            _extendVoteManager = extendVoteManager; _gameRules = gameRules;
         }
 
         public Config Config { get; set; } = null!;
@@ -95,9 +101,8 @@ namespace cs2_rockthevote
             {
                 ScreenMenus.Start();
                 _dependencyManager.OnPluginLoad(this);
-                _mapLister.OnLoad(this); // ensure map is loaded
                 RegisterListener<OnMapStart>(_dependencyManager.OnMapStart);
-            }, () => CleanupActions.Run(_endMapVoteManager.Stop, _changeMapManager.Stop, () => ScreenMenus.Dispose()));
+            }, () => CleanupActions.Run(_endOfMapVote.Stop, _endMapVoteManager.Stop, _extendVoteManager.Stop, _changeMapManager.Stop, _gameRules.Stop, () => ScreenMenus.Dispose()));
 #if DEBUG
             Logger.LogInformation("Plugin loaded successfully");
 #endif
@@ -107,7 +112,7 @@ namespace cs2_rockthevote
 
         public override void Unload(bool hotReload)
         {
-            CleanupActions.Run(_endMapVoteManager.Stop, _changeMapManager.Stop, () => ScreenMenus?.Dispose());
+            CleanupActions.Run(_endOfMapVote.Stop, _endMapVoteManager.Stop, _extendVoteManager.Stop, _changeMapManager.Stop, _gameRules.Stop, () => ScreenMenus?.Dispose());
         }
 
         [GameEventHandler(HookMode.Post)]

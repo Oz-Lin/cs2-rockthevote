@@ -8,21 +8,46 @@ namespace cs2_rockthevote
     public class GameRules : IPluginDependency<Plugin, Config>
     {
         CCSGameRules? _gameRules = null;
+        private Plugin? _plugin;
+        private bool _stopped;
+        private long _generation;
+        private readonly OneShotTimerSlot<Timer> _refresh = new();
 
-        public void SetGameRules() => _gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
+        public bool IsReady => !_stopped && _gameRules != null;
+
+        public void SetGameRules()
+        {
+            if (!_stopped)
+                _gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
+        }
 
         public void SetGameRulesAsync()
         {
             _gameRules = null;
-            //new Timer(1.0F, () =>
-            //{
-            //    SetGameRules();
-            //});
-            new Timer(1.0F, SetGameRules); //change to method group
+            long generation = ++_generation;
+            _refresh.Cancel(timer => PluginTimers.Kill(_plugin, timer));
+            if (_stopped || _plugin == null) return;
+            Timer? ownedTimer = null;
+            ownedTimer = _plugin.AddTimer(1.0F, () =>
+            {
+                _refresh.Retire(ownedTimer!);
+                PluginTimers.Forget(_plugin, ownedTimer!);
+                if (!_stopped && generation == _generation) SetGameRules();
+            }, CounterStrikeSharp.API.Modules.Timers.TimerFlags.STOP_ON_MAPCHANGE);
+            _refresh.Assign(ownedTimer);
         }
+
+        private void EndMap()
+        {
+            ++_generation; _stopped = true; _gameRules = null;
+            _refresh.Cancel(timer => PluginTimers.Kill(_plugin, timer));
+        }
+        public void Stop() => EndMap();
 
         public void OnLoad(Plugin plugin)
         {
+            _plugin = plugin; _stopped = false;
+            plugin.RegisterListener<CounterStrikeSharp.API.Core.Listeners.OnMapEnd>(EndMap);
             SetGameRulesAsync();
             plugin.RegisterEventHandler<EventRoundStart>(OnRoundStart);
             plugin.RegisterEventHandler<EventRoundAnnounceWarmup>(OnAnnounceWarmup);
@@ -32,6 +57,9 @@ namespace cs2_rockthevote
 
         public void OnMapStart(string map)
         {
+            ++_generation; _gameRules = null;
+            _refresh.Abandon(timer => PluginTimers.Forget(_plugin, timer));
+            _stopped = false;
             SetGameRulesAsync();
         }
 

@@ -27,7 +27,7 @@ Check("below threshold loses", !validator.CheckVotes(5, 10));
 Check("threshold wins", validator.CheckVotes(6, 10));
 Check("above threshold wins", validator.CheckVotes(7, 10));
 var half = new AsyncVoteValidator(new RtvConfig { VotePercentage = 50 });
-Check("existing midpoint-to-even rounding retained", half.GetRequiredVotes(5) == 2 && half.GetRequiredVotes(7) == 4);
+Check("fractional thresholds round up", half.GetRequiredVotes(5) == 3 && half.GetRequiredVotes(7) == 4);
 validator.AddVote(4); validator.AddVote(4); validator.AddVote(9);
 Check("validator tracking deduplicates", validator.GetVoteCount() == 2);
 validator.RemoveVote(4); Check("validator removal", validator.GetVoteCount() == 1);
@@ -535,4 +535,289 @@ Check("invalid captured identity resolves to no owned resource", identityLease.R
     levelLease.Release(() => throw new Exception("old map read"), _ => throw new Exception("old map write"));
     Check("map transition abandons old nextlevel lease without native access", !levelLease.Pending);
 }
+
+Check("two-player default RTV needs both players", validator.GetRequiredVotes(2) == 2 && !validator.CheckVotes(1, 2) && validator.CheckVotes(2, 2));
+Check("one player still needs one vote", validator.GetRequiredVotes(1) == 1 && !validator.CheckVotes(0, 1));
+Check("zero population never wins with zero votes", !validator.CheckVotes(0, 0));
+Check("zero percentage still needs a positive vote", !new AsyncVoteValidator(new RtvConfig { VotePercentage = 0 }).CheckVotes(0, 2));
+var exactPercent = new AsyncVoteValidator(new RtvConfig { VotePercentage = 28 });
+Check("exact decimal percent does not gain a float rounding vote", exactPercent.GetRequiredVotes(100) == 28 && exactPercent.GetRequiredVotes(25) == 7);
+var twoPlayerRtv = new AsyncVoteManager(new RtvConfig { VotePercentage = 60 }, () => 2);
+Check("first of two live manager voters cannot start RTV", twoPlayerRtv.AddVote(1).Result == VoteResultEnum.Added);
+Check("second of two live manager voters starts RTV", twoPlayerRtv.AddVote(2).Result == VoteResultEnum.VotesReached);
+
+var issueMaps = new[] {
+    new Map("de_inferno_d_prefab", "545454312"),
+    new Map("de_inferno_old", "545454312"),
+    new Map("de_inferno_old", "545454312"), // Exact maplist duplicates are harmless.
+    new Map("de_other", "777"), new Map("de_dust2", null),
+    new Map("not_numeric_one", "display id"), new Map("not_numeric_two", "display id"),
+    new Map("conflict", "123"), new Map("conflict", "456"), new Map("conflict_alias", "123")
+};
+var issueMapHistory = new cs2_rockthevote.Core.MapCooldownPolicy();
+issueMapHistory.Configure(3);
+issueMapHistory.Refresh(issueMaps, " DE_INFERNO_D_PREFAB ");
+Check("same workshop ID shares cooldown through loaded aliases", issueMapHistory.Contains("DE_INFERNO_OLD"));
+Check("same workshop ID shares current-map exclusion", issueMapHistory.IsCurrentMap("de_inferno_old"));
+Check("different workshop IDs remain independent", !issueMapHistory.Contains("de_other"));
+Check("manual addition rejects an already-cooled alias", !issueMapHistory.Add("de_inferno_old"));
+Check("manual plain-map cooldown is case insensitive", issueMapHistory.Add(" DE_DUST2 ") && issueMapHistory.Contains("de_dust2"));
+Check("non-numeric IDs cannot prove alias equivalence", !issueMapHistory.AreSameMap("not_numeric_one", "not_numeric_two"));
+Check("conflicting duplicate names cannot prove alias equivalence", !issueMapHistory.AreSameMap("conflict", "conflict_alias"));
+var unknownMapHistory = new cs2_rockthevote.Core.MapCooldownPolicy();
+unknownMapHistory.Configure(3);
+unknownMapHistory.Refresh(issueMaps, "unknown_engine_filename");
+Check("unlisted engine filename is not guessed as a workshop alias", !unknownMapHistory.Contains("de_inferno_old") && !unknownMapHistory.IsCurrentMap("de_inferno_old"));
+Check("unlisted engine filename retains ordinary name fallback", unknownMapHistory.Contains("UNKNOWN_ENGINE_FILENAME"));
+issueMapHistory.Configure(0);
+issueMapHistory.Refresh(issueMaps, "de_inferno_d_prefab");
+Check("zero map cooldown clears automatic history", !issueMapHistory.Contains("de_inferno_old"));
+Check("zero history still identifies the current workshop aliases", issueMapHistory.IsCurrentMap("de_inferno_old"));
+Check("zero automatic history retains explicit administrator additions", issueMapHistory.Add("de_dust2") && issueMapHistory.Contains("DE_DUST2"));
+issueMapHistory.Refresh(issueMaps, "de_inferno_d_prefab");
+Check("zero automatic history clears additions at the next map refresh", !issueMapHistory.Contains("de_dust2"));
+var historyCapacity = new cs2_rockthevote.Core.MapCooldownPolicy();
+historyCapacity.Configure(1);
+historyCapacity.Refresh(Array.Empty<Map>(), "one"); historyCapacity.Refresh(Array.Empty<Map>(), "two");
+Check("existing current-plus-history capacity convention retained", historyCapacity.Contains("one") && historyCapacity.Contains("two"));
+historyCapacity.Refresh(Array.Empty<Map>(), "three");
+Check("oldest entry leaves existing capacity", !historyCapacity.Contains("one") && historyCapacity.Contains("two") && historyCapacity.Contains("three"));
+
+var issueLister = new MapLister();
+var issueCooldown = new cs2_rockthevote.Core.MapCooldown(issueLister);
+issueCooldown.OnConfigParsed(new Config { MapsInCoolDown = 0 });
+// These are the real production consumers and real CSS379 menu objects. No native
+// controller/server methods are invoked; unrelated dependencies are not used here.
+var issueVotemap = new VotemapCommand(issueLister, null!, null!, null!, new PluginState(), issueCooldown);
+var issueNomination = new NominationCommand(issueLister, null!, null!, new PluginState(), issueCooldown);
+int issueRefreshCount = 0;
+issueCooldown.EventCooldownRefreshed += (_, maps) => { if (ReferenceEquals(maps, issueMaps)) issueRefreshCount++; };
+issueCooldown.RefreshMaps(issueMaps, "de_inferno_d_prefab");
+var instanceFields = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+object? ReadMenu(object consumer, string field) => consumer.GetType().GetField(field, instanceFields)!.GetValue(consumer);
+List<CounterStrikeSharp.API.Modules.Menu.ChatMenuOption> MenuOptions(object menu) =>
+    (List<CounterStrikeSharp.API.Modules.Menu.ChatMenuOption>)menu.GetType().GetProperty("MenuOptions")!.GetValue(menu)!;
+var issueChat = ReadMenu(issueVotemap, "votemapMenu");
+var issueHtml = ReadMenu(issueVotemap, "votemapMenuHud");
+var issueNom = ReadMenu(issueNomination, "nominationMenu");
+Check("zero cooldown emits the actual production refresh event", issueRefreshCount == 1);
+Check("zero cooldown initializes actual chat and HTML votemap menus", issueChat != null && issueHtml != null && MenuOptions(issueChat).Count > 0 && MenuOptions(issueHtml).Count > 0);
+Check("zero cooldown initializes actual nomination menu", issueNom != null && MenuOptions(issueNom).Count > 1);
+Check("known current workshop aliases are absent from initialized menus", !MenuOptions(issueChat!).Any(option => option.Text is "de_inferno_old" or "de_inferno_d_prefab"));
+Check("zero history does not disable other map menu options", MenuOptions(issueHtml!).All(option => !option.Disabled));
+issueCooldown.RefreshMaps(issueMaps, null);
+Check("missing engine name still refreshes menus", issueRefreshCount == 2 && !ReferenceEquals(issueChat, ReadMenu(issueVotemap, "votemapMenu")));
+
+var issueClock = new IssuePolicyClock();
+var issueRtvCooldown = new cs2_rockthevote.Core.RtvVoteCooldown(issueClock);
+Check("first RTV has no initial map-start cooldown", issueRtvCooldown.RemainingSeconds(300) == 0);
+issueClock.Advance(TimeSpan.FromDays(5));
+Check("time before first completed RTV does not create cooldown", issueRtvCooldown.RemainingSeconds(300) == 0);
+issueRtvCooldown.RecordCompletedVote();
+Check("completed RTV starts configured cooldown", issueRtvCooldown.RemainingSeconds(300) == 300);
+issueClock.Advance(TimeSpan.FromSeconds(299.5));
+Check("fractional remaining second blocks until boundary", issueRtvCooldown.RemainingSeconds(300) == 1);
+issueClock.Advance(TimeSpan.FromSeconds(0.5));
+Check("RTV is allowed exactly at cooldown boundary", issueRtvCooldown.RemainingSeconds(300) == 0);
+issueRtvCooldown.RecordCompletedVote();
+Check("latest RTV completion starts fresh interval", issueRtvCooldown.RemainingSeconds(300) == 300);
+Check("zero and negative cooldown remain disabled", issueRtvCooldown.RemainingSeconds(0) == 0 && issueRtvCooldown.RemainingSeconds(-1) == 0 && issueRtvCooldown.RemainingSeconds(int.MinValue) == 0);
+Check("maximum configured seconds do not overflow", issueRtvCooldown.RemainingSeconds(int.MaxValue) == int.MaxValue);
+issueClock.Advance(TimeSpan.FromSeconds(int.MaxValue));
+Check("maximum cooldown expires without timestamp addition overflow", issueRtvCooldown.RemainingSeconds(int.MaxValue) == 0);
+var reverseClock = new IssuePolicyClock();
+var reverseCooldown = new cs2_rockthevote.Core.RtvVoteCooldown(reverseClock);
+reverseCooldown.RecordCompletedVote(); reverseClock.Advance(TimeSpan.FromSeconds(-10));
+Check("backward injected timestamp cannot produce excessive countdown", reverseCooldown.RemainingSeconds(300) == 300);
+
+// Exercise the actual RTV event subscriber/config wiring without firing native game operations.
+var issueProducer = new EndMapVoteManager(null!, null!, null!, null!, new PluginState(), issueCooldown, null!, null!, null!, null!);
+var issueCommand = new RockTheVoteCommand(null!, issueProducer, null!, new PluginState(), issueClock);
+issueCommand.OnConfigParsed(new Config { Rtv = new RtvConfig { VoteCooldownTime = 300 } });
+Check("live RTV command initially allows first vote", issueCommand.CooldownSecondsRemaining == 0);
+var issueCompletedEvent = (EventHandler?)typeof(EndMapVoteManager).GetField("RtvVoteCompleted", instanceFields)!.GetValue(issueProducer);
+Check("live RTV command subscribes to completion event", issueCompletedEvent != null);
+issueCompletedEvent!(issueProducer, EventArgs.Empty);
+Check("live completion subscription reads actual configured interval", issueCommand.CooldownSecondsRemaining == 300);
+issueClock.Advance(TimeSpan.FromSeconds(300));
+Check("live command exposes elapsed cooldown", issueCommand.CooldownSecondsRemaining == 0);
+// Source-order audit still required: Votemap.AddVote and Nomination.Nominate resolve
+// GetSingleMatchingMapName before IsCurrentMap/IsMapInCooldown; neither inspects a
+// partial user query as a cooldown identity. No native callback execution is claimed.
+
+
+
+// The exact producer policy called by EndMapVoteManager.EndVote, not a synthetic event.
+{
+    var producer = new MapVotePolicy(); int notifications = 0;
+    var id = producer.Begin(new[] { "de_test" });
+    Check("current RTV completion notifies before caller side effects", producer.TryEndAndNotify(id, _ => 0, true, () => { notifications++; Check("completion callback sees inactive ballot", !producer.Active); }, out var produced) && produced?.Winner == "de_test" && notifications == 1);
+    Check("duplicate completion cannot restart RTV cooldown", !producer.TryEndAndNotify(id, _ => 0, true, () => notifications++, out _) && notifications == 1);
+    var replacementBallot = producer.Begin(new[] { "de_other" });
+    Check("old generation cannot complete replacement or notify", !producer.TryEndAndNotify(id, _ => 0, true, () => notifications++, out _) && producer.Active && notifications == 1);
+    producer.TryEndAndNotify(replacementBallot, _ => 0, false, () => notifications++, out _);
+    Check("automatic EOM does not start RTV cooldown", notifications == 1);
+    id = producer.Begin(Array.Empty<string>());
+    producer.TryEndAndNotify(id, _ => 0, true, () => notifications++, out var empty);
+    Check("empty failed ballot has no completion notification", empty == null && notifications == 1);
+    id = producer.Begin(new[] { "one", "two" });
+    try { producer.TryEndAndNotify(id, _ => throw new IOException("result selection"), true, () => notifications++, out _); } catch (IOException) { }
+    Check("result evaluation failure retires vote without cooldown", !producer.Active && notifications == 1);
+    id = producer.Begin(new[] { "extend" });
+    producer.TryEndAndNotify(id, _ => 0, true, () => notifications++, out _);
+    Check("resolved extension RTV also starts cooldown", notifications == 2);
+    id = producer.Begin(new[] { "map" }); producer.Reset();
+    Check("cancelled start or map change never emits completion", !producer.TryEndAndNotify(id, _ => 0, true, () => notifications++, out _) && notifications == 2);
+}
+{
+    var triggers = new EndVoteTriggerPolicy();
+    Check("initial automatic time threshold starts once", triggers.Observe(EndVoteTrigger.Time, true, false));
+    bool loop = false; for (int i = 0; i < 10000; i++) loop |= triggers.Observe(EndVoteTrigger.Time, true, false);
+    Check("short or zero-time extension cannot loop inside threshold", !loop);
+    Check("other already-eligible round threshold cannot double-start", !triggers.Observe(EndVoteTrigger.Rounds, true, false));
+    Check("extension beyond threshold rearms without firing", !triggers.Observe(EndVoteTrigger.Time, false, false));
+    Check("extended map automatically votes on later threshold crossing", triggers.Observe(EndVoteTrigger.Time, true, false));
+    triggers.Observe(EndVoteTrigger.Rounds, false, false);
+    Check("round-only extension rearms after leaving round threshold", triggers.Observe(EndVoteTrigger.Rounds, true, false));
+    triggers.Reset();
+    Check("warmup or active vote blocks an eligible trigger", !triggers.Observe(EndVoteTrigger.Time, true, true));
+    Check("first eligible episode can fire after blocker ends", triggers.Observe(EndVoteTrigger.Time, true, false));
+    triggers.Reset(); triggers.BallotStarted();
+    Check("fast manual RTV consumes both automatic episodes", !triggers.Observe(EndVoteTrigger.Time, true, false) && !triggers.Observe(EndVoteTrigger.Rounds, true, false));
+    triggers.Reset();
+    Check("new map resets trigger episodes", triggers.Observe(EndVoteTrigger.Time, true, false));
+}
+{
+    var monitor = new EndVoteMonitor(); var triggers = new EndVoteTriggerPolicy();
+    Action? tick = null; int scheduled = 0, cancelled = 0, ballots = 0; bool eligible = true;
+    void Poll() { if (triggers.Observe(EndVoteTrigger.Time, eligible, false)) ballots++; }
+    Action Schedule(Action callback) { scheduled++; tick = callback; return () => cancelled++; }
+    monitor.Start(Poll, Schedule); monitor.Start(Poll, Schedule); tick!();
+    Check("live monitor is not duplicated by repeated round events", scheduled == 1 && ballots == 1);
+    eligible = false; tick(); eligible = true; tick();
+    Check("same persistent monitor handles extension and second vote without round event", scheduled == 1 && ballots == 2);
+    var oldTick = tick; monitor.Stop(); monitor.Start(Poll, Schedule);
+    triggers.Reset(); oldTick!();
+    Check("stale old-map callback is inert after replacement monitor", ballots == 2 && cancelled == 1);
+    tick!(); Check("new map monitor remains active after old callback", ballots == 3);
+    monitor.Stop(); tick();
+    Check("unloaded monitor cannot start another ballot", ballots == 3 && !monitor.Active);
+}
+{
+    var monitor = new EndVoteMonitor(); Action? queued = null; int ticks = 0, kills = 0;
+    monitor.Start(() => ticks++, callback => { queued = callback; return () => { kills++; if (kills == 1) throw new IOException("timer kill"); }; });
+    try { monitor.Stop(); } catch (IOException) { }
+    queued!();
+    Check("failed native timer cancellation still invalidates queued work", !monitor.Active && ticks == 0);
+    bool blocked = false; try { monitor.Start(() => ticks++, _ => () => { }); } catch (InvalidOperationException) { blocked = true; }
+    Check("failed cancellation cannot silently lose old timer ownership", blocked);
+    monitor.Stop(); Check("failed monitor cancellation is retryable", kills == 2);
+    bool creationFailed = false; try { monitor.Start(() => ticks++, _ => throw new IOException("create")); } catch (IOException) { creationFailed = true; }
+    Check("timer creation failure does not leave monitor active", creationFailed && !monitor.Active);
+    monitor.Start(() => ticks++, callback => { queued = callback; return () => kills++; }); queued!(); monitor.Stop();
+    Check("monitor can restart after cleanup and creation failure", ticks == 1 && kills == 3);
+}
+{
+    var state = new PluginState { CommandsDisabled = true, EofVoteHappening = true, ExtendTimeVoteHappening = true, MapChangeScheduled = true };
+    state.OnMapStart("synthetic");
+    Check("map lifecycle resets managed flags without plugin reload command", !state.DisableCommands);
+    var pendingRtv = new AsyncVoteManager(new RtvConfig { VotePercentage = 60 }, () => 3);
+    pendingRtv.AddVote(99);
+    typeof(RockTheVoteCommand).GetField("_voteManager", instanceFields)!.SetValue(issueCommand, pendingRtv);
+    issueCompletedEvent!(issueProducer, EventArgs.Empty);
+    issueCommand.OnMapStart("synthetic");
+    Check("normal map start preserves elapsed RTV cooldown", issueCommand.CooldownSecondsRemaining == 300);
+    Check("normal map start immediately clears requests without delayed native timer", pendingRtv.VoteCount == 0 && !pendingRtv.VotesAlreadyReached);
+    pendingRtv.AddVote(100);
+    Check("new-map requests remain available after immediate reset", pendingRtv.VoteCount == 1);
+}
+
+
+{
+    var triggers = new EndVoteTriggerPolicy(); triggers.BallotStarted();
+    // The successful extension event observes +1 before RoundStart decrements it.
+    Check("extension exit observation only rearms, never immediately votes", !triggers.Observe(EndVoteTrigger.Rounds, false, true));
+    Check("next-round crossing after brief extension exit still votes", triggers.Observe(EndVoteTrigger.Rounds, true, false));
+    triggers.BallotStarted();
+    triggers.Observe(EndVoteTrigger.Rounds, true, true);
+    Check("zero or insufficient round extension cannot manufacture an exit", !triggers.Observe(EndVoteTrigger.Rounds, true, false));
+}
+{
+    var slot = new OneShotTimerSlot<object>(); var firstTimer = new object(); var secondTimer = new object(); int kills = 0;
+    slot.Assign(firstTimer); slot.Retire(firstTimer); slot.Cancel(_ => kills++);
+    Check("completed one-shot is not killed again through a stale pointer", !slot.Pending && kills == 0);
+    slot.Assign(secondTimer); slot.Retire(firstTimer);
+    Check("old callback cannot retire replacement one-shot", slot.Pending);
+    slot.Cancel(timer => { Check("replacement cancellation targets its own wrapper", ReferenceEquals(timer, secondTimer)); kills++; });
+    Check("unexecuted one-shot is cancelled once", !slot.Pending && kills == 1);
+    slot.Assign(firstTimer); bool failed = false;
+    try { slot.Cancel(_ => throw new IOException("kill")); } catch (IOException) { failed = true; }
+    Check("failed one-shot cancellation keeps ownership", failed && slot.Pending);
+    slot.Cancel(_ => kills++);
+    Check("failed one-shot cancellation remains retryable", !slot.Pending && kills == 2);
+    slot.Assign(secondTimer); slot.Retire(secondTimer);
+    try { throw new IOException("callback body"); } catch (IOException) { }
+    slot.Cancel(_ => kills++);
+    Check("one-shot callback exception cannot resurrect stale timer", !slot.Pending && kills == 2);
+}
+
+
+{
+    var owned = new object(); var other = new object(); var hostTimers = new List<object> { owned, other };
+    PluginTimers.RemoveReference(hostTimers, owned);
+    Check("completed timer leaves host list without removing unrelated wrapper", hostTimers.Count == 1 && ReferenceEquals(hostTimers[0], other));
+    PluginTimers.RemoveReference(hostTimers, owned);
+    Check("duplicate retirement is harmless to host list", hostTimers.Count == 1);
+    hostTimers.Add(owned); bool failedKill = false;
+    try { PluginTimers.Release(hostTimers, owned, _ => throw new IOException("native kill")); } catch (IOException) { failedKill = true; }
+    Check("failed Kill retains exact timer in host registry for retry", failedKill && hostTimers.Contains(owned));
+    int nativeKills = 0;
+    PluginTimers.Release(hostTimers, owned, timer => { nativeKills++; Check("host cleanup targets exact owned timer", ReferenceEquals(timer, owned)); });
+    Check("successful Kill removes stale wrapper before host unload", nativeKills == 1 && hostTimers.Count == 1 && ReferenceEquals(hostTimers[0], other));
+    var equalA = new EqualTimerWrapper(7); var equalB = new EqualTimerWrapper(7);
+    var equalTimers = new List<EqualTimerWrapper> { equalA, equalB };
+    PluginTimers.RemoveReference(equalTimers, equalA);
+    Check("host retirement uses object identity even when wrapper values compare equal", equalTimers.Count == 1 && ReferenceEquals(equalTimers[0], equalB));
+}
+
+
+{
+    var monitor = new EndVoteMonitor(); Action? staleTick = null; int kills = 0, forgotten = 0, ticks = 0;
+    monitor.Start(() => ticks++, callback => { staleTick = callback; return () => { kills++; throw new IOException("map-end kill"); }; }, () => forgotten++);
+    try { monitor.Stop(); } catch (IOException) { }
+    // Engine startup has deleted the STOP timer before managed map start.
+    monitor.Abandon(); staleTick!(); monitor.Stop();
+    Check("new map abandons failed old cancellation without killing recycled pointer", kills == 1 && forgotten == 1 && ticks == 0);
+    monitor.Start(() => ticks++, callback => { staleTick = callback; return () => kills++; }, () => forgotten++);
+    staleTick!(); monitor.Stop();
+    Check("new monitor works after previous-map abandon", ticks == 1 && kills == 2);
+    var slot = new OneShotTimerSlot<object>(); var previous = new object(); var registry = new List<object> { previous };
+    slot.Assign(previous); slot.Abandon(timer => PluginTimers.RemoveReference(registry, timer)); slot.Cancel(_ => kills++);
+    Check("one-shot map-start abandon clears both slot and host registry", !slot.Pending && registry.Count == 0 && kills == 2);
+    var current = new object(); slot.Assign(current); registry.Add(current); slot.Retire(previous); PluginTimers.RemoveReference(registry, previous);
+    Check("late old callback cannot retire new-map timer or host entry", slot.Pending && registry.Count == 1 && ReferenceEquals(registry[0], current));
+    slot.Abandon(timer => PluginTimers.RemoveReference(registry, timer));
+}
+{
+    var rules = new GameRules();
+    Check("uninitialized GameRules cannot drive automatic vote thresholds", !rules.IsReady);
+    rules.Stop();
+    rules.SetGameRules(); rules.SetGameRulesAsync();
+    Check("stopped GameRules refresh methods do not access native schema", rules.ReadPauseState() == null && rules.TotalRoundsPlayed == 0);
+    rules.Stop();
+    Check("GameRules stop without a pending refresh is idempotent", rules.ReadPauseState() == null);
+    Check("stopped GameRules remains unavailable to automatic monitor", !rules.IsReady);
+    var registryField = typeof(BasePlugin).GetField("Timers");
+    Check("actual CSS379 exposes the public timer registry used for precise retirement", registryField != null && registryField.FieldType == typeof(List<CounterStrikeSharp.API.Modules.Timers.Timer>));
+}
+
 Console.WriteLine($"SUMMARY {passed} passed, 0 failed; managed only, no native game execution.");
+sealed class IssuePolicyClock : TimeProvider
+{
+    private long _timestamp;
+    public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+    public override long GetTimestamp() => _timestamp;
+    public void Advance(TimeSpan elapsed) => _timestamp += elapsed.Ticks;
+}
+
+sealed record EqualTimerWrapper(int Pointer);

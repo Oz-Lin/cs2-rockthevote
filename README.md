@@ -1,3 +1,5 @@
+See [vote issue fixes and compatibility notes](docs/CSS379_ISSUE_FIXES.md) for thresholds, cooldowns, aliases and automatic repeat votes.
+
 See [main-branch semantic backports and limits](docs/CSS379_MAIN_BACKPORTS.md) for the audited 11 commits.
 
 # CS2 Rock The Vote
@@ -58,7 +60,6 @@ Please drop a ⭐ star in the repository
 - Compatibility for non-round-based game mode during map time extension
 
 # Work in Progress
-- Cooldown to start another RTV after the last vote
 - Bug fix on "ignore specs" checker
 
 # ⚠️ Help Wanted
@@ -109,7 +110,7 @@ Players can type rtv to request the map to be changed, once a number of votes is
 | VotePercentage      | Percentage of players that should type RTV in order to start a vote                                                    | 60            | 0     | 100                                  |
 | DontChangeRtv       | Enable/Disable option not to change the current map                                                                    | true          | false | true                                 |
 | IgnoreSpec          | Ignore spectators from vote count                                                                                      | true          | false | true                                 |
-| VoteCooldownTime    | Cooldown timer to start the next RTV                                                                                   | 300           | 0     | -                                 |
+| VoteCooldownTime    | Seconds after a completed RTV before another RTV (0 disables)                                                                                   | 300           | 0     | -                                 |
 | ExtendTimeStep        | How long (in minutes) should the mp_timelimit to be extended                                                             | 15         | 0       | -                                |
 | ExtendRoundStep         | How many rounds should the mp_maxrounds to be extended                                                                 | 5             | 0     |                                      |
 | ExtendLimit             | How many times the current map can be extended (-1 for unlimited extensions)                                          | 3             | -1     |                                      |

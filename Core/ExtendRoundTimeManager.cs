@@ -54,6 +54,7 @@ namespace cs2_rockthevote
         {
             _plugin = plugin;
             plugin.RegisterListener<OnTick>(VoteDisplayTick);
+            plugin.RegisterListener<OnMapEnd>(Stop);
         }
 
         public void OnConfigParsed(Config config)
@@ -66,8 +67,19 @@ namespace cs2_rockthevote
          *  Need a better way to handle this, as the plugin reload approach breaks map cooldown.
          *
          */
+        public void Stop()
+        {
+            _ballotGeneration++;
+            _pluginState.ExtendTimeVoteHappening = false;
+            timeLeft = -1;
+            KillTimer();
+        }
+
         public void OnMapStart(string map)
         {
+            // STOP timer deletion precedes managed map start in CSS379.
+            if (Timer != null) PluginTimers.Forget(_plugin, Timer);
+            Timer = null;
             _ballotGeneration++;
             _pluginState.ExtendTimeVoteHappening = false;
             // Preserve the configured VIP extension limit across map changes.
@@ -174,17 +186,21 @@ namespace cs2_rockthevote
 
         void KillTimer()
         {
-            _plugin?.ScreenMenus?.CloseOwned(this);
-            foreach (var player in Utilities.GetPlayers())
-                if (player.IsValid && _chatMenus.TryGetValue(player.EntityHandle.Raw, out var menu) && MenuManager.GetActiveMenu(player) is BaseMenuInstance instance && ReferenceEquals(instance.Menu, menu))
-                    MenuManager.CloseActiveMenu(player);
-            _chatMenus.Clear();
             timeLeft = -1;
-            if (Timer is not null)
+            CleanupActions.Run(() =>
             {
-                Timer!.Kill();
-                Timer = null;
-            }
+                try
+                {
+                    _plugin?.ScreenMenus?.CloseOwned(this);
+                    foreach (var player in Utilities.GetPlayers())
+                        if (player.IsValid && _chatMenus.TryGetValue(player.EntityHandle.Raw, out var menu) && MenuManager.GetActiveMenu(player) is BaseMenuInstance instance && ReferenceEquals(instance.Menu, menu))
+                            MenuManager.CloseActiveMenu(player);
+                }
+                finally { _chatMenus.Clear(); }
+            }, () =>
+            {
+                if (Timer != null) { PluginTimers.Kill(_plugin, Timer); Timer = null; }
+            });
         }
 
         void PrintCenterTextAll(string text)

@@ -1,4 +1,4 @@
-﻿using CounterStrikeSharp.API;
+using CounterStrikeSharp.API;
 
 namespace cs2_rockthevote
 {
@@ -19,17 +19,14 @@ namespace cs2_rockthevote
 
         public void OnMapStart(string map)
         {
-            bool needsReload = MapChangeScheduled || EofVoteHappening || ExtendTimeVoteHappening || CommandsDisabled;
 
             MapChangeScheduled = false;
             EofVoteHappening = false;
             ExtendTimeVoteHappening = false;
             CommandsDisabled = false;
 
-            if (needsReload)
-            {
-                Server.ExecuteCommand("css_plugins reload RockTheVote");
-            }
+            // Dependencies own their map lifecycle. Reloading the plugin here used to
+            // discard map history and the completed-RTV cooldown on normal map changes.
         }
     }
 }
