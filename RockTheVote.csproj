@@ -1,19 +1,21 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>cs2_rockthevote</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>
-     <PackageReference Include="CounterStrikeSharp.API" Version="1.0.316" />
-     <PackageReference Include="CS2ScreenMenuAPI" Version="3.0.4" />
+     <PackageReference Include="CounterStrikeSharp.API" Version="1.0.379" />
+     <PackageReference Include="Tomlyn" Version="0.19.0" />
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Remove="tests\**\*.cs" />
     <None Update="lang\**\*.*" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="screenmenu.example.toml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

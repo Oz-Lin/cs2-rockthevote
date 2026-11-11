@@ -1,7 +1,8 @@
-﻿using CounterStrikeSharp.API;
+using CounterStrikeSharp.API.Modules.Events;
+using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
-using CounterStrikeSharp.API.Modules.Events;
+using CounterStrikeSharp.API.Core.Attributes;
 using cs2_rockthevote.Features;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -21,15 +22,11 @@ namespace cs2_rockthevote
         }
     }
 
+    [MinimumApiVersion(379)]
     public partial class Plugin : BasePlugin, IPluginConfig<Config>
     {
         public override string ModuleName => "RockTheVote";
-#if DEBUG
-        public override string ModuleVersion => "1.9.6 (DEBUG)";
-#endif
-#if RELEASE
-        public override string ModuleVersion => "1.9.6 (RELEASE)";
-#endif
+        public override string ModuleVersion => "1.9.7-css379-screenmenu";
         public override string ModuleAuthor => "abnerfs, Oz-Lin, [ZeRo]XiaoLinWuDi, theextr1m";
         public override string ModuleDescription => "https://github.com/oz-lin/cs2-rockthevote";
 
@@ -90,15 +87,27 @@ namespace cs2_rockthevote
 
         public override void Load(bool hotReload)
         {
+            ScreenMenus = new ScreenMenus.ScreenMenuService(this);
 #if DEBUG
             Logger.LogInformation($"Plugin loading... (hot reload: {hotReload})");
 #endif
-            _dependencyManager.OnPluginLoad(this);
-            _mapLister.OnLoad(this); // ensure map is loaded
-            RegisterListener<OnMapStart>(_dependencyManager.OnMapStart);
+            global::cs2_rockthevote.ScreenMenus.StartupGuard.Complete(() =>
+            {
+                ScreenMenus.Start();
+                _dependencyManager.OnPluginLoad(this);
+                _mapLister.OnLoad(this); // ensure map is loaded
+                RegisterListener<OnMapStart>(_dependencyManager.OnMapStart);
+            }, () => ScreenMenus.Dispose());
 #if DEBUG
             Logger.LogInformation("Plugin loaded successfully");
 #endif
+        }
+
+        public ScreenMenus.ScreenMenuService ScreenMenus { get; private set; } = null!;
+
+        public override void Unload(bool hotReload)
+        {
+            ScreenMenus?.Dispose();
         }
 
         [GameEventHandler(HookMode.Post)]

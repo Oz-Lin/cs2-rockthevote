@@ -396,3 +396,7 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+
+# Runtime player preferences and deployment-specific menu settings
+player_resolutions.json
+screenmenu.toml

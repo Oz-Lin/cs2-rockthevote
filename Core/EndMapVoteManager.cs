@@ -4,12 +4,8 @@ using CounterStrikeSharp.API.Modules.Menu;
 using CounterStrikeSharp.API.Modules.Timers;
 using cs2_rockthevote.Core;
 using Microsoft.Extensions.Logging;
-using System.Data;
-using System.Drawing;
-using System.Linq.Expressions;
-using System.Reflection;
 using System.Text;
-using CS2ScreenMenuAPI;
+using cs2_rockthevote.ScreenMenus;
 using static CounterStrikeSharp.API.Core.Listeners;
 using Timer = CounterStrikeSharp.API.Modules.Timers.Timer;
 
@@ -59,8 +55,10 @@ namespace cs2_rockthevote
         private readonly GameRules _gameRules;
         private VotemapConfig _votemapConfig = new(); // dealing with votemap overrides endmapvote nextmap
 
-        Dictionary<string, int> Votes = new();
-        Dictionary<CCSPlayerController, string> PlayerVotes = new();
+        private readonly MapVotePolicy _vote = new();
+        private IReadOnlyDictionary<string, int> Votes => _vote.Totals;
+        private readonly Dictionary<uint, ChatMenu> _chatVoteMenus = new();
+        private string? _extendOption;
         int timeLeft = -1;
 
         List<string> mapsEllected = new();
@@ -72,9 +70,9 @@ namespace cs2_rockthevote
         private EndOfMapConfig? _eomConfig = new();
         private int _totalExtendLimit;
 
-        HashSet<int> _voted = new();
+        private readonly HashSet<uint> _voted = new();
 
-        public bool VoteInProgress => timeLeft >= 0;
+        public bool VoteInProgress => _vote.Active;
 
         public void OnLoad(Plugin plugin)
         {
@@ -90,11 +88,12 @@ namespace cs2_rockthevote
 
         public void OnMapStart(string map)
         {
-            Votes.Clear();
-            PlayerVotes.Clear();
-            timeLeft = 0;
+            _vote.Reset();
+            _voted.Clear();
             mapsEllected.Clear();
             KillTimer();
+            CloseVoteMenus();
+            _extendOption = null;
             _eomConfig!.ExtendLimit = _totalExtendLimit;
 
             // Make sure all state flags are reset
@@ -115,35 +114,26 @@ namespace cs2_rockthevote
 
         public void MapVoted(CCSPlayerController player, string mapName)
         {
-            if (_config!.HideHudAfterVote)
-                _voted.Add(player.UserId!.Value);
+            MapVoted(player, mapName, _vote.Generation);
+        }
 
-            if (PlayerVotes.ContainsKey(player))
-            {
-                Votes[PlayerVotes[player]] -= 1;
-            }
-
-            if (!Votes.ContainsKey(mapName))
-            {
-                Votes[mapName] = 0;
-            }
-
-            Votes[mapName] += 1;
-            PlayerVotes[player] = mapName;
+        private void MapVoted(CCSPlayerController player, string mapName, long generation)
+        {
+            if (!TryGetVoterId(player, out var voter) || !_vote.Cast(generation, voter, mapName)) return;
+            if (_config!.HideHudAfterVote) _voted.Add(voter);
             player.PrintToChat(_localizer.LocalizeWithPrefix("emv.you-voted", mapName));
-            if (Votes.Select(x => x.Value).Sum() >= _canVote)
+            if (_vote.BallotCount >= _canVote)
             {
-                EndVote();
+                EndVote(generation);
             }
         }
 
         public void RevokeVote(CCSPlayerController player)
         {
-            if (PlayerVotes.ContainsKey(player))
+            if (!VoteInProgress || !TryGetVoterId(player, out var voter)) return;
+            if (_vote.Revoke(_vote.Generation, voter))
             {
-                Votes[PlayerVotes[player]] -= 1;
-                PlayerVotes.Remove(player);
-                _voted.Remove(player.UserId!.Value);
+                _voted.Remove(voter);
                 player.PrintToChat(_localizer.LocalizeWithPrefix("general.vote-revoked-choose-again"));
                 ShowMapVoteMenu(player); // Bring back the map vote menu
             }
@@ -155,50 +145,34 @@ namespace cs2_rockthevote
 
         private void ShowMapVoteMenu(CCSPlayerController player)
         {
-            if (_eomConfig!.HudMenu == 2)
+            if (!VoteInProgress) return;
+            if (_config!.HudMenu == 2)
             {
                 var menu = CreateMapVoteScreenMenu(player);
                 menu.Display();
             }
-            if (_eomConfig!.HudMenu == 1)
+            if (_config.HudMenu == 0 || _config.HudMenu == 1)
             {
                 var cMenu = CreateMapVoteMenu();
+                _chatVoteMenus[player.EntityHandle.Raw] = cMenu;
                 MenuManager.OpenChatMenu(player, cMenu);
             }
         }
 
         private ChatMenu CreateMapVoteMenu()
         {
-            ChatMenu cMenu = new(_localizer.Localize("emv.hud.menu-title"));
-
-            if (_eomConfig != null && _eomConfig.AllowExtend && (_eomConfig.ExtendLimit > 0 || _eomConfig.ExtendLimit == -1))
+            var generation = _vote.Generation;
+            ChatMenu cMenu = new(_localizer.Localize("emv.hud.menu-title"))
             {
-                if (!Votes.ContainsKey(_localizer.Localize("general.extend-current-map")))
-                {
-                    Votes[_localizer.Localize("general.extend-current-map")] = 0;
-                }
-                cMenu.AddMenuOption(_localizer.Localize("general.extend-current-map"), (player, option) =>
-                {
-                    MapVoted(player, _localizer.Localize("general.extend-current-map"));
-                    MenuManager.CloseActiveMenu(player);
-                });
-
-            }
-
-            int mapsToShow = _config!.MapsToShow == 0 ? MAX_OPTIONS_HUD_MENU : _config!.MapsToShow;
-            if (_config.HudMenu > 0 && mapsToShow > MAX_OPTIONS_HUD_MENU)
-                mapsToShow = MAX_OPTIONS_HUD_MENU;
-
-            foreach (var map in mapsEllected.Take((_eomConfig != null && _eomConfig.AllowExtend && (_eomConfig.ExtendLimit > 0 || _eomConfig.ExtendLimit == -1)) ? (mapsToShow - 1) : mapsToShow))
+                // Close only this menu in the callback, never a replacement opened there.
+                PostSelectAction = PostSelectAction.Nothing
+            };
+            foreach (var map in Votes.Keys)
             {
-                if (!Votes.ContainsKey(map))
-                {
-                    Votes[map] = 0;
-                }
                 cMenu.AddMenuOption(map, (player, option) =>
                 {
-                    MapVoted(player, map);
-                    MenuManager.CloseActiveMenu(player);
+                    MapVoted(player, map, generation);
+                    CloseChatMenuIfOwned(player, cMenu);
                 });
             }
 
@@ -207,36 +181,78 @@ namespace cs2_rockthevote
 
         private Menu CreateMapVoteScreenMenu(CCSPlayerController player)
         {
+            var generation = _vote.Generation;
             Menu sMenu = new Menu(player, _plugin!)
             {
                 Title = _localizer.Localize("emv.hud.menu-title"),
                 PostSelect = PostSelect.Close,
-                HasExitButon = true
+                HasExitButon = true,
+                OwnerTag = this
             };
-            if (_eomConfig != null && _eomConfig.AllowExtend && (_eomConfig.ExtendLimit > 0 || _eomConfig.ExtendLimit == -1))
+            foreach (var map in Votes.Keys)
             {
-                Votes[_localizer.Localize("general.extend-current-map")] = 0;
-                sMenu.AddItem(_localizer.Localize("general.extend-current-map"), (player, option) =>
-                {
-                    MapVoted(player, _localizer.Localize("general.extend-current-map"));
-                    // MenuManager.CloseActiveMenu(player);
-                });
-            }
-
-            int mapsToShow = _config!.MapsToShow == 0 ? MAX_OPTIONS_HUD_MENU : _config!.MapsToShow;
-            if (_config.HudMenu > 0 && mapsToShow > MAX_OPTIONS_HUD_MENU)
-                mapsToShow = MAX_OPTIONS_HUD_MENU;
-
-            foreach (var map in mapsEllected.Take((_eomConfig != null && _eomConfig.AllowExtend && (_eomConfig.ExtendLimit > 0 || _eomConfig.ExtendLimit == -1)) ? (mapsToShow - 1) : mapsToShow))
-            {
-                Votes[map] = 0;
                 sMenu.AddItem(map, (player, option) =>
                 {
-                    MapVoted(player, map);
-                    // MenuManager.CloseActiveMenu(player);
+                    MapVoted(player, map, generation);
                 });
             }
             return sMenu;
+        }
+
+        private static bool TryGetVoterId(CCSPlayerController player, out uint voter)
+        {
+            voter = 0;
+            if (player is null || !player.IsValid || !player.EntityHandle.IsValid) return false;
+            voter = player.EntityHandle.Raw;
+            return true;
+        }
+
+        private static void CloseChatMenuIfOwned(CCSPlayerController player, ChatMenu menu)
+        {
+            if (player.IsValid && MenuManager.GetActiveMenu(player) is BaseMenuInstance active && ReferenceEquals(active.Menu, menu))
+                MenuManager.CloseActiveMenu(player);
+        }
+
+        private void CloseVoteMenus()
+        {
+            try
+            {
+                _plugin?.ScreenMenus.CloseOwned(this);
+            }
+            catch (Exception ex)
+            {
+                _plugin?.Logger.LogWarning(ex, "Could not close this map vote's screen menus.");
+            }
+            try
+            {
+                foreach (var player in Utilities.GetPlayers())
+                {
+                    try
+                    {
+                        if (TryGetVoterId(player, out var voter) && _chatVoteMenus.TryGetValue(voter, out var menu))
+                            CloseChatMenuIfOwned(player, menu);
+                    }
+                    catch (Exception ex)
+                    {
+                        _plugin?.Logger.LogWarning(ex, "Could not close a map vote chat menu.");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _plugin?.Logger.LogWarning(ex, "Could not enumerate map vote chat menus for cleanup.");
+            }
+            finally { _chatVoteMenus.Clear(); }
+        }
+
+        private IEnumerable<string> GetVoteOptions()
+        {
+            var allowExtend = _eomConfig != null && _eomConfig.AllowExtend && (_eomConfig.ExtendLimit > 0 || _eomConfig.ExtendLimit == -1);
+            _extendOption = allowExtend ? _localizer.Localize("general.extend-current-map") : null;
+            if (_extendOption != null) yield return _extendOption;
+            int mapsToShow = _config!.MapsToShow == 0 ? MAX_OPTIONS_HUD_MENU : _config.MapsToShow;
+            if (_config.HudMenu > 0 && mapsToShow > MAX_OPTIONS_HUD_MENU) mapsToShow = MAX_OPTIONS_HUD_MENU;
+            foreach (var map in mapsEllected.Take(allowExtend ? mapsToShow - 1 : mapsToShow)) yield return map;
         }
 
 
@@ -272,14 +288,7 @@ namespace cs2_rockthevote
 
         public void VoteDisplayTick()
         {
-            if (timeLeft < 0)
-            {
-                foreach (CCSPlayerController player in ServerManager.ValidPlayers())
-                {
-                    MenuAPI.CloseActiveMenu(player);
-                }
-                return;
-            }
+            if (!VoteInProgress) return;
                 
 
             int index = 1;
@@ -296,25 +305,30 @@ namespace cs2_rockthevote
                     stringBuilder.AppendFormat($"<br><font color='yellow'>!{index++}</font> {kv.Key} <font color='green'>({kv.Value})</font>");
                 }
 
-            foreach (CCSPlayerController player in ServerManager.ValidPlayers().Where(x => !_voted.Contains(x.UserId!.Value)))
+            foreach (CCSPlayerController player in ServerManager.ValidPlayers().Where(x => !_voted.Contains(x.EntityHandle.Raw)))
             {
                 player.PrintToCenterHtml(stringBuilder.ToString());
             }
         }
 
-        void EndVote()
+        void EndVote(long generation)
         {
+            if (!_vote.IsCurrent(generation)) return;
             try
             {
+                if (!_vote.TryEnd(generation, Random.Shared.Next, out var result)) return;
                 bool mapEnd = _config is EndOfMapConfig;
                 KillTimer();
-                decimal maxVotes = Votes.Select(x => x.Value).Max();
-                IEnumerable<KeyValuePair<string, int>> potentialWinners = Votes.Where(x => x.Value == maxVotes);
-                Random rnd = new();
-                KeyValuePair<string, int> winner = potentialWinners.ElementAt(rnd.Next(0, potentialWinners.Count()));
-
-                decimal totalVotes = Votes.Select(x => x.Value).Sum();
-                decimal percent = totalVotes > 0 ? winner.Value / totalVotes * 100M : 0;
+                CloseVoteMenus();
+                if (result is null)
+                {
+                    _plugin?.Logger.LogWarning("EndVote: No map candidates were available; no map change was scheduled.");
+                    return;
+                }
+                var winner = new KeyValuePair<string, int>(result.Winner, result.WinningVotes);
+                decimal maxVotes = result.WinningVotes;
+                decimal totalVotes = result.TotalVotes;
+                decimal percent = result.WinningPercentage;
 
                 if (maxVotes > 0)
                 {
@@ -327,7 +341,7 @@ namespace cs2_rockthevote
 
                 PrintCenterTextAll(_localizer.Localize("emv.hud.finished", winner.Key));
 
-                if (winner.Key == _localizer.Localize("general.extend-current-map"))
+                if (winner.Key == _extendOption)
                 {
                     if (_config != null)
                     {
@@ -390,13 +404,17 @@ namespace cs2_rockthevote
             }
             catch (Exception ex)
             {
-#if DEBUG
-                _plugin?.Logger.LogError($"Error ending vote: {ex.Message}");
-#endif
+                _plugin?.Logger.LogError(ex, "Error ending map vote.");
             }
             finally
             {
-                _pluginState.EofVoteHappening = false;
+                // A map transition or replacement vote owns its own timer and menus.
+                if (_vote.Generation == generation)
+                {
+                    KillTimer();
+                    CloseVoteMenus();
+                    _pluginState.EofVoteHappening = false;
+                }
 #if DEBUG
                 _plugin?.Logger.LogInformation("EndVote: Reset EofVoteHappening to false in finally block");
 #endif
@@ -421,7 +439,7 @@ namespace cs2_rockthevote
             try
             {
                 // Check if vote is already in progress
-                if (_pluginState.EofVoteHappening || timeLeft > 0)
+                if (_pluginState.EofVoteHappening || VoteInProgress)
                 {
 #if DEBUG
                     _plugin?.Logger.LogWarning("StartVote: Attempted to start a vote while one is already in progress. Ignoring request.");
@@ -429,8 +447,8 @@ namespace cs2_rockthevote
                     return;
                 }
 
-                Votes.Clear();
-                PlayerVotes.Clear();
+                KillTimer();
+                CloseVoteMenus();
                 _voted.Clear();
 
                 // Backup the current config as if this is called via the server command, the config will be changed
@@ -448,34 +466,31 @@ namespace cs2_rockthevote
                         .ToList());
                 mapsEllected = _nominationManager.NominationWinners().Concat(mapsScrambled).Distinct().ToList();
 
-            _canVote = ServerManager.ValidPlayerCount();
-            foreach (var player in ServerManager.ValidPlayers())
-            {
-                if (_eomConfig!.HudMenu == 2)
+                var generation = _vote.Begin(GetVoteOptions());
+                var players = ServerManager.ValidPlayers();
+                _canVote = players.Length;
+                timeLeft = _config.VoteDuration;
+                if (Votes.Count == 0)
                 {
-                    var menu = CreateMapVoteScreenMenu(player);
-                    menu.Display();
+                    EndVote(generation);
+                    return;
                 }
 
-                if (_eomConfig!.HudMenu == 0 || _eomConfig!.HudMenu == 1)
+                foreach (var player in players)
                 {
-                    var menu = CreateMapVoteMenu();
-                    MenuManager.OpenChatMenu(player!, menu);
+                    ShowMapVoteMenu(player);
                 }
-            }
 
-            timeLeft = _config.VoteDuration;
-
-                // Kill any existing timer to avoid duplicates
-                //KillTimer(); // the KillTimer here flawed the countdown timer
-
+                if (!_vote.IsCurrent(generation)) return;
                 Timer = _plugin!.AddTimer(1.0F, () =>
                 {
+                    // A queued callback from a prior vote must not end its replacement.
+                    if (!_vote.IsCurrent(generation)) return;
                     try
                     {
                         if (timeLeft <= 0)
                         {
-                            EndVote();
+                            EndVote(generation);
                             return; // Add explicit return to ensure code after doesn't run
                         }
                         else
@@ -487,13 +502,7 @@ namespace cs2_rockthevote
 #if DEBUG
                                 _plugin?.Logger.LogWarning($"Vote timer safety triggered: Vote has been running too long. Forcing end.");
 #endif
-                                EndVote();
-                                if (_eomConfig!.HudMenu == 2)
-                                {
-                                    foreach (var player in Utilities.GetPlayers())
-                                        if (player != null)
-                                            MenuAPI.CloseActiveMenu(player);
-                                }
+                                EndVote(generation);
                                 return;
                             }
                         }
@@ -501,23 +510,28 @@ namespace cs2_rockthevote
                     catch (Exception ex)
                     {
                         // Ensure flag is reset even if there's an exception in the timer callback
+                        if (_vote.Generation != generation) return;
+                        _vote.Reset();
                         KillTimer(); // Make sure to kill the timer on exception
+                        CloseVoteMenus();
                         _pluginState.EofVoteHappening = false;
 #if DEBUG
                         _plugin?.Logger.LogInformation("StartVote: Reset EofVoteHappening to false due to exception in timer callback");
-                        _plugin?.Logger.LogError($"Error in vote timer: {ex.Message}");
 #endif
+                        _plugin?.Logger.LogError(ex, "Error in map vote timer.");
                     }
-                }, TimerFlags.REPEAT);
+                }, TimerFlags.REPEAT | TimerFlags.STOP_ON_MAPCHANGE);
             }
             catch (Exception ex)
             {
+                _vote.Reset();
                 KillTimer(); // Make sure to kill any timer if exception occurs
+                CloseVoteMenus();
                 _pluginState.EofVoteHappening = false;
 #if DEBUG
                 _plugin?.Logger.LogInformation("StartVote: Reset EofVoteHappening to false due to exception in StartVote");
-                _plugin?.Logger.LogError($"Error starting vote: {ex.Message}");
 #endif
+                _plugin?.Logger.LogError(ex, "Error starting map vote.");
             }
         }
     }

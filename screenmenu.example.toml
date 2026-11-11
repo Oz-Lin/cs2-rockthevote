@@ -1,0 +1,41 @@
+# Optional plugin-local override. Existing legacy TOML is read without modification.
+[Settings]
+FontName = "Tahoma Bold"
+MenuType = "Both"
+Size = 25
+PositionX = -9.0
+PositionY = 0.0
+HasExitOption = true
+ShowResolutionOption = true
+ShowPageCount = true
+ShowDisabledOptionNum = true
+FreezePlayer = true
+ShowControlsInfo = true
+ScrollPrefix = ">"
+
+[Settings.Resolutions."1920x1080"]
+PositionX = -9.0
+PositionY = 0.0
+
+[Controls]
+ScrollUp = "W"
+ScrollDown = "S"
+Select = "E"
+
+[Sounds]
+Select = "menu.Select"
+Next = "menu.Select"
+Prev = "menu.Close"
+Close = "menu.Close"
+ScrollUp = "menu.ScrollUp"
+ScrollDown = "menu.ScrollDown"
+Volume = 1.0
+
+[Lang.en]
+Prev = "Back"
+Next = "Next"
+Close = "Close"
+SelectRes = "Select Your Game Resolution"
+ChangeRes = "Change Resolution"
+ScrollKeys = "[{0}/{1}] Scroll"
+SelectKey = "[{0}] Select"

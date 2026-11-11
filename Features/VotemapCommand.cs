@@ -1,4 +1,4 @@
-﻿using CounterStrikeSharp.API;
+using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
 using CounterStrikeSharp.API.Core.Logging;
@@ -6,7 +6,7 @@ using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Menu;
 using cs2_rockthevote.Core;
 using Microsoft.Extensions.Localization;
-using CS2ScreenMenuAPI;
+using cs2_rockthevote.ScreenMenus;
 //using CS2ScreenMenuAPI.Enums;
 //using CS2ScreenMenuAPI.Internal;
 //using CS2ScreenMenuAPI.Interfaces;
@@ -45,7 +45,6 @@ namespace cs2_rockthevote
         private Dictionary<string, AsyncVoteManager> VotedMaps = new();
         private ChatMenu? votemapMenu = null;
         private CenterHtmlMenu? votemapMenuHud = null;
-        private Menu? votemapScreenMenuHud = null;
         private VotemapConfig _config = new();
         private GameRules _gamerules;
         private StringLocalizer _localizer;
@@ -125,7 +124,7 @@ namespace cs2_rockthevote
         //    menu?.AddItem(mapName, (player, option) =>
         //    {
         //        AddVote(player, mapName);
-        //        //MenuAPI.CloseActiveMenu(player);
+        //        //_plugin!.ScreenMenus.Close(player);
         //    }, _mapCooldown.IsMapInCooldown(mapName));
         //}
 
@@ -205,17 +204,15 @@ namespace cs2_rockthevote
             switch (_config.HudMenu)
             {
                 case 2:
-                    if (votemapScreenMenuHud is null)
-                    {
-                        votemapScreenMenuHud = CreateVotemapScreenMenu(player); // Assign the menu here
-                    }
-                    votemapScreenMenuHud.Display();
+                    CreateVotemapScreenMenu(player).Display();
                     //MenuManager.OpenChatMenu(player, votemapMenu!);
                     break;
                 case 1:
+                    _plugin.ScreenMenus.Close(player);
                     MenuManager.OpenCenterHtmlMenu(_plugin!, player, votemapMenuHud!);
                     break;
                 case 0:
+                    _plugin.ScreenMenus.Close(player);
                     MenuManager.OpenChatMenu(player, votemapMenu!);
                     break;
             }
@@ -279,7 +276,7 @@ namespace cs2_rockthevote
             switch (_config.HudMenu)
             {
                 case 2:
-                    MenuAPI.CloseActiveMenu(player);
+                    _plugin!.ScreenMenus.Close(player);
                     MenuManager.CloseActiveMenu(player);
                     break;
                 case 1:

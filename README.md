@@ -1,4 +1,6 @@
 # CS2 Rock The Vote
+
+This migration branch targets CounterStrikeSharp.API **1.0.379 / .NET 10**, with a plugin-owned camera-follow screen menu. See [compatibility, controls, tests and required native acceptance](docs/CSS379_SCREEN_MENU.md). No game-server acceptance or deployment is claimed.
 ![Downloads](https://img.shields.io/github/downloads/Oz-Lin/cs2-rockthevote/total) ![Last commit](https://img.shields.io/github/last-commit/Oz-Lin/cs2-rockthevote "Last commit") ![Open issues](https://img.shields.io/github/issues/Oz-Lin/cs2-rockthevote "Open Issues") ![Closed issues](https://img.shields.io/github/issues-closed/Oz-Lin/cs2-rockthevote "Closed Issues") ![Size](https://img.shields.io/github/repo-size/abnerfs/dontpad-api "Size")
 
 ![image](https://github.com/Oz-Lin/cs2-rockthevote/blob/main/example_image.png)
@@ -19,7 +21,7 @@ Please drop a ⭐ star in the repository
   
 ## Requirements
 - [Latest release of Counter Strike Sharp](https://github.com/roflmuffin/CounterStrikeSharp)
-- [ScreenMenuAPI](https://github.com/T3Marius/CS2ScreenMenuAPI) 
+- .NET 10-compatible CounterStrikeSharp host; no external ScreenMenuAPI DLL is required.
 
 # Installation
 - Download the latest release from https://github.com/Oz-Lin/cs2-rockthevote/releases
@@ -53,7 +55,7 @@ Please drop a ⭐ star in the repository
 - Bug fix on "ignore specs" checker
 
 # ⚠️ Help Wanted
-- WASD menu - a lot of code refactoring must be done before implementing this feature. Can't give guarantee about this feature. 
+- Movement-key screen-menu controls are implemented in this CSS379 branch. Native game acceptance is still required; see [migration details](docs/CSS379_SCREEN_MENU.md). 
 - Currently work in progress. Thanks T3-Marius, XiaoLinWuDi, theextr1m
 
 # Translations

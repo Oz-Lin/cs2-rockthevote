@@ -1,4 +1,4 @@
-﻿using CounterStrikeSharp.API;
+using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
 using CounterStrikeSharp.API.Modules.Commands;
@@ -8,7 +8,7 @@ using CounterStrikeSharp.API.Modules.Menu;
 using CounterStrikeSharp.API.Modules.Admin;
 using CounterStrikeSharp.API.Modules.Utils;
 using cs2_rockthevote.Core;
-using CS2ScreenMenuAPI;
+using cs2_rockthevote.ScreenMenus;
 //using CS2ScreenMenuAPI.Enums;
 //using CS2ScreenMenuAPI.Internal;
 using Microsoft.Extensions.Logging;
@@ -118,7 +118,6 @@ namespace cs2_rockthevote
     {
         private Dictionary<int, (string PlayerName, List<string> Maps)> Nominations = new();
         private ChatMenu? nominationMenu = null;
-        private Menu? nominationScreenMenu = null;
         private RtvConfig _config = new();
         private GameRules _gamerules;
         private StringLocalizer _localizer;
@@ -263,15 +262,12 @@ namespace cs2_rockthevote
             switch (_config.HudMenu)
             {
                 case 2:
-                    if (nominationScreenMenu is null) // Ensure it is initialized
-                    {
-                        nominationScreenMenu = CreateNominationScreenMenu(player);
-                    }
-                    nominationScreenMenu.Display();
+                    CreateNominationScreenMenu(player).Display();
                     //MenuManager.OpenChatMenu(player, nominationMenu!);
                     break;
                 case 1:
                 case 0:
+                    _plugin.ScreenMenus.Close(player);
                     MenuManager.OpenChatMenu(player, nominationMenu!);
                     break;
             }
@@ -324,7 +320,7 @@ namespace cs2_rockthevote
             switch (_config.HudMenu)
             {
                 case 2:
-                    MenuAPI.CloseActiveMenu(player);
+                    _plugin!.ScreenMenus.Close(player);
                     MenuManager.CloseActiveMenu(player);
                     break;
                 case 1:

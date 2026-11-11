@@ -1,4 +1,4 @@
-﻿using CounterStrikeSharp.API;
+using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
 using CounterStrikeSharp.API.Modules.Commands;
@@ -11,7 +11,7 @@ using System.Text;
 using Microsoft.Extensions.Logging;
 using static CounterStrikeSharp.API.Core.Listeners;
 using Timer = CounterStrikeSharp.API.Modules.Timers.Timer;
-using CS2ScreenMenuAPI;
+using cs2_rockthevote.ScreenMenus;
 //using CS2ScreenMenuAPI.Enums;
 using CounterStrikeSharp.API.Modules.Entities;
 //using CS2ScreenMenuAPI.Internal;
@@ -36,7 +36,9 @@ namespace cs2_rockthevote
         private GameRules _gameRules;
 
         Dictionary<string, int> Votes = new();
-        Dictionary<CCSPlayerController, string> PlayerVotes = new();
+        Dictionary<uint, string> PlayerVotes = new();
+        private long _ballotGeneration;
+        private readonly Dictionary<uint, ChatMenu> _chatMenus = new();
         int timeLeft = -1;
 
         private IExtendMapConfig? _config = null;
@@ -66,20 +68,11 @@ namespace cs2_rockthevote
          */
         public void OnMapStart(string map)
         {
-            try
-            {
-                // _pluginState.ExtendsLeft = _config!.ExtendLimit; //Null ref happened! Maplist broken!
-                _pluginState.ExtendsLeft = new Config().VipExtendMapVote.ExtendLimit; // try this approach
-                _totalExtendLimit = new Config().VipExtendMapVote.ExtendLimit;
-            }
-            catch (Exception)
-            {
-                // Screw it, Oz-Lin is fixing the null reference exception issue for razpberry.
-#if DEBUG
-                Server.PrintToConsole(_localizer.LocalizeWithPrefix("") + "Null Reference Exception happened, default to 3 extends.");
-#endif
-                Server.ExecuteCommand("css_plugins reload RockTheVote"); // screw it!
-            }
+            _ballotGeneration++;
+            _pluginState.ExtendTimeVoteHappening = false;
+            // Preserve the configured VIP extension limit across map changes.
+            _totalExtendLimit = _veConfig?.ExtendLimit ?? new Config().VipExtendMapVote.ExtendLimit;
+            _pluginState.ExtendsLeft = _totalExtendLimit;
 
             Votes.Clear();
             PlayerVotes.Clear();
@@ -90,18 +83,9 @@ namespace cs2_rockthevote
         // VIP Extend Start
         public void ExtendTimeVoted(CCSPlayerController player, string voteResponse)
         {
-            if (PlayerVotes.ContainsKey(player))
-            {
-                Votes[PlayerVotes[player]] -= 1;
-            }
+            if (!_pluginState.ExtendTimeVoteHappening || !player.IsValid || !ExtensionVotePolicy.Cast(Votes, PlayerVotes, player.EntityHandle.Raw, voteResponse))
+                return;
 
-            if (!Votes.ContainsKey(voteResponse))
-            {
-                Votes[voteResponse] = 0;
-            }
-
-            Votes[voteResponse] += 1;
-            PlayerVotes[player] = voteResponse;
             player.PrintToCenter(_localizer.LocalizeWithPrefix("extendtime.you-voted", voteResponse));
             if (Votes.Select(x => x.Value).Sum() >= _canVote)
             {
@@ -111,10 +95,8 @@ namespace cs2_rockthevote
 
         public void RevokeVote(CCSPlayerController player)
         {
-            if (PlayerVotes.ContainsKey(player))
+            if (_pluginState.ExtendTimeVoteHappening && player.IsValid && ExtensionVotePolicy.Revoke(Votes, PlayerVotes, player.EntityHandle.Raw))
             {
-                Votes[PlayerVotes[player]] -= 1;
-                PlayerVotes.Remove(player);
                 player.PrintToCenter(_localizer.LocalizeWithPrefix("general.vote-revoked-choose-again"));
                 ShowVoteMenu(player); // Bring back the vote menu
             }
@@ -126,21 +108,23 @@ namespace cs2_rockthevote
 
         private void ShowVoteMenu(CCSPlayerController player)
         {
-            if (_veConfig!.HudMenu == 2)
+            if (_config!.HudMenu == 2)
             {
                 var menu = CreateVoteScreenMenu(player);
                 menu.Display();
             }
-            if (_veConfig.HudMenu == 1)
+            if (_config.HudMenu is 0 or 1)
             {
                 var menu = CreateVoteMenu();
+                _chatMenus[player.EntityHandle.Raw] = menu;
                 MenuManager.OpenChatMenu(player, menu);
             }
         }
 
         private ChatMenu CreateVoteMenu()
         {
-            ChatMenu menu = new(_localizer.Localize("extendtime.hud.menu-title"));
+            long generation = _ballotGeneration;
+            ChatMenu menu = new(_localizer.Localize("extendtime.hud.menu-title")) { PostSelectAction = PostSelectAction.Nothing };
 
             var answers = new List<string>() { "Yes", "No" };
 
@@ -152,8 +136,9 @@ namespace cs2_rockthevote
                 }
                 menu.AddMenuOption(answer, (player, option) =>
                 {
+                    if (generation != _ballotGeneration || !_pluginState.ExtendTimeVoteHappening) return;
                     ExtendTimeVoted(player, answer);
-                    MenuManager.CloseActiveMenu(player);
+                    if (MenuManager.GetActiveMenu(player) is BaseMenuInstance instance && ReferenceEquals(instance.Menu, menu)) MenuManager.CloseActiveMenu(player);
                 });
             }
 
@@ -162,8 +147,10 @@ namespace cs2_rockthevote
 
         private Menu CreateVoteScreenMenu(CCSPlayerController player)
         {
+            long generation = _ballotGeneration;
             Menu menu = new Menu(player, _plugin!)
             {
+                OwnerTag = this,
                 Title = _localizer.Localize("extendtime.hud.menu-title"),
                 PostSelect = PostSelect.Close,
                 HasExitButon = true
@@ -173,9 +160,10 @@ namespace cs2_rockthevote
 
             foreach (var answer in answers)
             {
-                Votes[answer] = 0;
+                ExtensionVotePolicy.EnsureOptions(Votes);
                 menu.AddItem(answer, (player, option) =>
                 {
+                    if (generation != _ballotGeneration || !_pluginState.ExtendTimeVoteHappening) return;
                     ExtendTimeVoted(player, answer);
                     //MenuManager.CloseActiveMenu(player);
                 });
@@ -186,6 +174,11 @@ namespace cs2_rockthevote
 
         void KillTimer()
         {
+            _plugin?.ScreenMenus?.CloseOwned(this);
+            foreach (var player in Utilities.GetPlayers())
+                if (player.IsValid && _chatMenus.TryGetValue(player.EntityHandle.Raw, out var menu) && MenuManager.GetActiveMenu(player) is BaseMenuInstance instance && ReferenceEquals(instance.Menu, menu))
+                    MenuManager.CloseActiveMenu(player);
+            _chatMenus.Clear();
             timeLeft = -1;
             if (Timer is not null)
             {
@@ -232,21 +225,17 @@ namespace cs2_rockthevote
 
         void ExtendTimeVote()
         {
+            if (!_pluginState.ExtendTimeVoteHappening) return;
+            _pluginState.ExtendTimeVoteHappening = false;
             KillTimer();
 
+            var outcome = ExtensionVotePolicy.Evaluate(Votes, Random.Shared.Next);
+            decimal totalVotes = outcome.TotalVotes;
+            decimal percent = outcome.WinningPercentage;
 
-
-            decimal maxVotes = Votes.Select(x => x.Value).Max();
-            IEnumerable<KeyValuePair<string, int>> potentialWinners = Votes.Where(x => x.Value == maxVotes);
-            Random rnd = new();
-            KeyValuePair<string, int> winner = potentialWinners.ElementAt(rnd.Next(0, potentialWinners.Count()));
-
-            decimal totalVotes = Votes.Select(x => x.Value).Sum();
-            decimal percent = totalVotes > 0 ? winner.Value / totalVotes * 100M : 0;
-
-            if (maxVotes > 0)
+            if (totalVotes > 0)
             {
-                if (winner.Key == "No")
+                if (!outcome.Passed)
                 {
                     Server.PrintToChatAll(_localizer.LocalizeWithPrefix("extendtime.vote-ended.failed", percent, totalVotes));
                 }
@@ -260,7 +249,7 @@ namespace cs2_rockthevote
                 Server.PrintToChatAll(_localizer.LocalizeWithPrefix("extendtime.vote-ended-no-votes"));
             }
 
-            if (winner.Key == "No")
+            if (!outcome.Passed)
             {
                 // Do nothing, vote did not pass
                 PrintCenterTextAll(_localizer.Localize("extendtime.hud.finished", "not be extended."));
@@ -292,24 +281,29 @@ namespace cs2_rockthevote
 
         public void StartVote(IExtendMapConfig config)
         {
+            if (_pluginState.ExtendTimeVoteHappening) return;
+            _config = config ?? throw new ArgumentNullException(nameof(config));
+            long generation = ++_ballotGeneration;
             Votes.Clear();
+            ExtensionVotePolicy.EnsureOptions(Votes);
             PlayerVotes.Clear();
             _pluginState.ExtendTimeVoteHappening = true;
-            _config = config ?? throw new ArgumentNullException(nameof(config));
+            timeLeft = _config.VoteDuration;
 
             _canVote = ServerManager.ValidPlayerCount();
             foreach (var player in ServerManager.ValidPlayers())
             {
-                if (_veConfig!.HudMenu == 2)
+                if (_config.HudMenu == 2)
                 {
                     var sMenu = CreateVoteScreenMenu(player);
                     //foreach (var player in ServerManager.ValidPlayers())
                     sMenu.Display();
                 }
 
-                if (_veConfig.HudMenu == 1)
+                if (_config.HudMenu is 0 or 1)
                 {
                     var cMenu = CreateVoteMenu();
+                    _chatMenus[player.EntityHandle.Raw] = cMenu;
                     //foreach (var player in ServerManager.ValidPlayers())
                     MenuManager.OpenChatMenu(player, cMenu);
                 }
@@ -318,19 +312,14 @@ namespace cs2_rockthevote
             timeLeft = _config.VoteDuration;
             Timer = _plugin!.AddTimer(1.0F, () =>
             {
+                if (generation != _ballotGeneration || !_pluginState.ExtendTimeVoteHappening) return;
                 if (timeLeft <= 0)
                 {
                     ExtendTimeVote();
-                    if (_veConfig!.HudMenu == 2)
-                    {
-                        foreach (var player in Utilities.GetPlayers())
-                            if (player != null)
-                                MenuAPI.CloseActiveMenu(player);
-                    }
                 }
                 else
                     timeLeft--;
-            }, TimerFlags.REPEAT);
+            }, TimerFlags.REPEAT | TimerFlags.STOP_ON_MAPCHANGE);
         }
         // VIP Extend End
 

@@ -1,28 +1,33 @@
-﻿namespace cs2_rockthevote
+namespace cs2_rockthevote
 {
-
     public record VoteResult(VoteResultEnum Result, int VoteCount, int RequiredVotes);
 
     public class AsyncVoteManager
     {
         private List<int> votes = new();
-        public int VoteCount => votes.Count;
-        public int RequiredVotes => _voteValidator.RequiredVotes;
+        private readonly Func<int> _playerCount;
+        private readonly AsyncVoteValidator _voteValidator;
 
-        public AsyncVoteManager(IVoteConfig config)
+        public AsyncVoteManager(IVoteConfig config) : this(config, () => ServerManager.ValidPlayerCount()) { }
+
+        public AsyncVoteManager(IVoteConfig config, Func<int> playerCountProvider)
         {
+            ArgumentNullException.ThrowIfNull(config);
+            ArgumentNullException.ThrowIfNull(playerCountProvider);
+            _playerCount = playerCountProvider;
             _voteValidator = new AsyncVoteValidator(config);
         }
+
+        public int VoteCount => votes.Count;
+        public int RequiredVotes => _voteValidator.GetRequiredVotes(_playerCount());
+
+        public bool VotesAlreadyReached { get; set; } = false;
 
         public void OnMapStart(string _mapName)
         {
             votes.Clear();
             VotesAlreadyReached = false;
         }
-
-        private readonly AsyncVoteValidator _voteValidator;
-
-        public bool VotesAlreadyReached { get; set; } = false;
 
         public VoteResult AddVote(int userId)
         {
@@ -38,7 +43,8 @@
                 result = VoteResultEnum.Added;
             }
 
-            if (_voteValidator.CheckVotes(votes.Count))
+            int totalPlayers = _playerCount();
+            if (_voteValidator.CheckVotes(votes.Count, totalPlayers))
             {
                 VotesAlreadyReached = true;
                 return new VoteResult(VoteResultEnum.VotesReached, VoteCount, RequiredVotes);
