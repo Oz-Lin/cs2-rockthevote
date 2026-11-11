@@ -811,6 +811,63 @@ Check("live command exposes elapsed cooldown", issueCommand.CooldownSecondsRemai
     Check("actual CSS379 exposes the public timer registry used for precise retirement", registryField != null && registryField.FieldType == typeof(List<CounterStrikeSharp.API.Modules.Timers.Timer>));
 }
 
+
+// Exercise the exact production cleanup bodies, with real CSS379 menu types.
+// No native entity system, fabricated CSS classes, or fake native controller is used.
+{
+    var cleanupState = new PluginState { EofVoteHappening = true };
+    var cleanupRules = new GameRules();
+    var cleanupMapVote = new EndMapVoteManager(null!, null!, null!, null!, cleanupState, null!, null!, null!, null!, cleanupRules);
+    var cleanupFlags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+    var cleanupBody = typeof(EndMapVoteManager).GetMethod("CloseVoteMenus", cleanupFlags, null,
+        new[] { typeof(Func<List<CCSPlayerController>>) }, null)!;
+    int entityProbes = 0;
+    Func<List<CCSPlayerController>> unavailableEntities = () => { entityProbes++; throw new InvalidOperationException("injected unavailable entity system"); };
+    cleanupBody.Invoke(cleanupMapVote, new object[] { unavailableEntities });
+    Check("actual map-vote empty chat cleanup never probes entity system", entityProbes == 0);
+    // No-argument production route still resets the ballot and runs all cleanup actions.
+    var cleanupBallot = (MapVotePolicy)typeof(EndMapVoteManager).GetField("_vote", cleanupFlags)!.GetValue(cleanupMapVote)!;
+    cleanupBallot.Begin(new[] { "de_test" });
+    cleanupMapVote.Stop(); cleanupMapVote.Stop();
+    Check("actual map-vote Stop with empty resources succeeds without native host", !cleanupMapVote.VoteInProgress && !cleanupState.EofVoteHappening);
+    var ownedChats = (Dictionary<uint, CounterStrikeSharp.API.Modules.Menu.ChatMenu>)typeof(EndMapVoteManager).GetField("_chatVoteMenus", cleanupFlags)!.GetValue(cleanupMapVote)!;
+    ownedChats.Add(123, new CounterStrikeSharp.API.Modules.Menu.ChatMenu("owned"));
+    cleanupBody.Invoke(cleanupMapVote, new object[] { unavailableEntities });
+    Check("nonempty map-vote chat cleanup still performs enumeration with original catch boundary", entityProbes == 1);
+    ownedChats.Add(456, new CounterStrikeSharp.API.Modules.Menu.ChatMenu("owned later"));
+    int successfulProbes = 0;
+    cleanupBody.Invoke(cleanupMapVote, new object[] { (Func<List<CCSPlayerController>>)(() => { successfulProbes++; return new(); }) });
+    Check("nonempty map-vote cleanup still accepts real empty-player result", successfulProbes == 1 && ownedChats.Count == 0);
+}
+{
+    var cleanupState = new PluginState { ExtendTimeVoteHappening = true };
+    var cleanupRules = new GameRules();
+    var cleanupExtend = new ExtendRoundTimeManager(null!, cleanupState, new cs2_rockthevote.Core.TimeLimitManager(cleanupRules), cleanupRules);
+    var cleanupFlags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+    var cleanupBody = typeof(ExtendRoundTimeManager).GetMethod("KillTimer", cleanupFlags, null,
+        new[] { typeof(Func<List<CCSPlayerController>>) }, null)!;
+    int entityProbes = 0;
+    Func<List<CCSPlayerController>> unavailableEntities = () => { entityProbes++; throw new InvalidOperationException("injected unavailable entity system"); };
+    cleanupBody.Invoke(cleanupExtend, new object[] { unavailableEntities });
+    Check("actual VIP empty chat cleanup never probes entity system", entityProbes == 0 && !cleanupExtend.VoteInProgress);
+    cleanupExtend.Stop(); cleanupExtend.Stop();
+    Check("actual VIP Stop with empty resources succeeds without native host", !cleanupExtend.VoteInProgress && !cleanupState.ExtendTimeVoteHappening);
+    var ownedChats = (Dictionary<uint, CounterStrikeSharp.API.Modules.Menu.ChatMenu>)typeof(ExtendRoundTimeManager).GetField("_chatMenus", cleanupFlags)!.GetValue(cleanupExtend)!;
+    ownedChats.Add(123, new CounterStrikeSharp.API.Modules.Menu.ChatMenu("owned"));
+    bool propagated = false;
+    try { cleanupBody.Invoke(cleanupExtend, new object[] { unavailableEntities }); }
+    catch (System.Reflection.TargetInvocationException ex)
+    {
+        propagated = ex.InnerException is AggregateException aggregate && aggregate.InnerExceptions.Any(error => error is InvalidOperationException);
+    }
+    Check("nonempty VIP enumeration error retains original aggregate failure behavior", entityProbes == 1 && propagated);
+    Check("nonempty VIP cleanup failure still retires vote display state", !cleanupExtend.VoteInProgress);
+    ownedChats.Add(456, new CounterStrikeSharp.API.Modules.Menu.ChatMenu("owned later"));
+    int successfulProbes = 0;
+    cleanupBody.Invoke(cleanupExtend, new object[] { (Func<List<CCSPlayerController>>)(() => { successfulProbes++; return new(); }) });
+    Check("nonempty VIP cleanup still accepts real empty-player result", successfulProbes == 1 && ownedChats.Count == 0);
+}
+
 Console.WriteLine($"SUMMARY {passed} passed, 0 failed; managed only, no native game execution.");
 sealed class IssuePolicyClock : TimeProvider
 {

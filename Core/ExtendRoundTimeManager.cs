@@ -184,7 +184,9 @@ namespace cs2_rockthevote
             return menu;
         }
 
-        void KillTimer()
+        void KillTimer() => KillTimer(Utilities.GetPlayers);
+
+        void KillTimer(Func<List<CCSPlayerController>> getPlayers)
         {
             timeLeft = -1;
             CleanupActions.Run(() =>
@@ -192,7 +194,9 @@ namespace cs2_rockthevote
                 try
                 {
                     _plugin?.ScreenMenus?.CloseOwned(this);
-                    foreach (var player in Utilities.GetPlayers())
+                    // Still release screen menus and timers when no chat menu exists.
+                    if (_chatMenus.Count > 0)
+                    foreach (var player in getPlayers())
                         if (player.IsValid && _chatMenus.TryGetValue(player.EntityHandle.Raw, out var menu) && MenuManager.GetActiveMenu(player) is BaseMenuInstance instance && ReferenceEquals(instance.Menu, menu))
                             MenuManager.CloseActiveMenu(player);
                 }

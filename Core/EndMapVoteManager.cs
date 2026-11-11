@@ -243,7 +243,9 @@ namespace cs2_rockthevote
                 MenuManager.CloseActiveMenu(player);
         }
 
-        private void CloseVoteMenus()
+        private void CloseVoteMenus() => CloseVoteMenus(Utilities.GetPlayers);
+
+        private void CloseVoteMenus(Func<List<CCSPlayerController>> getPlayers)
         {
             try
             {
@@ -255,7 +257,9 @@ namespace cs2_rockthevote
             }
             try
             {
-                foreach (var player in Utilities.GetPlayers())
+                // No owned chat menu means no entity-system access is needed.
+                if (_chatVoteMenus.Count > 0)
+                foreach (var player in getPlayers())
                 {
                     try
                     {
