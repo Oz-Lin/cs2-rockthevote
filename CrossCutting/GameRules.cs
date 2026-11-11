@@ -1,4 +1,4 @@
-﻿using CounterStrikeSharp.API;
+using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
 using Timer = CounterStrikeSharp.API.Modules.Timers.Timer;
@@ -47,6 +47,10 @@ namespace cs2_rockthevote
             SetGameRules();
             return HookResult.Continue;
         }
+
+        public MatchPauseSnapshot? ReadPauseState() => _gameRules == null ? null : new(
+            _gameRules.MatchWaitingForResume,
+            _gameRules.TechnicalTimeOut || _gameRules.TerroristTimeOutActive || _gameRules.CTTimeOutActive);
 
         public bool WarmupRunning => _gameRules?.WarmupPeriod ?? false;
 

@@ -1,4 +1,4 @@
-﻿using CounterStrikeSharp.API;
+using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Menu;
 using CounterStrikeSharp.API.Modules.Timers;
@@ -56,6 +56,8 @@ namespace cs2_rockthevote
         private VotemapConfig _votemapConfig = new(); // dealing with votemap overrides endmapvote nextmap
 
         private readonly MapVotePolicy _vote = new();
+        private readonly VotePauseLease _pause = new();
+        private long _mapGeneration;
         private IReadOnlyDictionary<string, int> Votes => _vote.Totals;
         private readonly Dictionary<uint, ChatMenu> _chatVoteMenus = new();
         private string? _extendOption;
@@ -78,6 +80,7 @@ namespace cs2_rockthevote
         {
             _plugin = plugin;
             plugin.RegisterListener<OnTick>(VoteDisplayTick);
+            plugin.RegisterListener<OnMapEnd>(CancelForMapChange);
         }
 
         public void OnConfigParsed(Config config)
@@ -86,13 +89,31 @@ namespace cs2_rockthevote
             _totalExtendLimit = config.EndOfMapVote.ExtendLimit;
         }
 
+        private void ReleasePause()
+        {
+            _pause.ReleaseIfPending(_pause.Generation, _mapGeneration, _gameRules.ReadPauseState, () => Server.ExecuteCommand("mp_unpause_match"));
+        }
+        private void CleanupVote() => CleanupActions.ResetThenRun(
+            () => { timeLeft = -1; _pluginState.EofVoteHappening = false; }, KillTimer, CloseVoteMenus, ReleasePause);
+        private void CancelForMapChange()
+        {
+            ++_mapGeneration; _pause.Abandon(); _vote.Reset();
+            CleanupActions.ResetThenRun(() => { timeLeft = -1; _pluginState.EofVoteHappening = false; }, KillTimer, CloseVoteMenus);
+        }
+        public void Stop()
+        {
+            _vote.Reset();
+            CleanupVote();
+        }
+        public void FinishActiveVote() { if (_vote.Active) EndVote(_vote.Generation); }
+
         public void OnMapStart(string map)
         {
+            ++_mapGeneration;
+            _pause.Abandon(); // Never send an old-map unpause into the new map.
             _vote.Reset();
             _voted.Clear();
             mapsEllected.Clear();
-            KillTimer();
-            CloseVoteMenus();
             _extendOption = null;
             _eomConfig!.ExtendLimit = _totalExtendLimit;
 
@@ -110,6 +131,7 @@ namespace cs2_rockthevote
                 _config = _configBackup;
                 _configBackup = null;
             }
+            CleanupActions.Run(KillTimer, CloseVoteMenus);
         }
 
         public void MapVoted(CCSPlayerController player, string mapName)
@@ -258,21 +280,10 @@ namespace cs2_rockthevote
 
         void KillTimer()
         {
-            if (Timer is not null)
-            {
-                Timer!.Kill();
-                Timer = null;
-            }
-
+            // Logical state is retired even if the native timer cannot be killed yet.
             timeLeft = -1;
-
-            if (_pluginState.EofVoteHappening)
-            {
-                _pluginState.EofVoteHappening = false;
-#if DEBUG
-                _plugin?.Logger.LogInformation("KillTimer: Reset EofVoteHappening to false");
-#endif
-            }
+            _pluginState.EofVoteHappening = false;
+            if (Timer is not null) { Timer.Kill(); Timer = null; }
         }
 
         void PrintCenterTextAll(string text)
@@ -343,6 +354,7 @@ namespace cs2_rockthevote
 
                 if (winner.Key == _extendOption)
                 {
+                    _changeMapManager.CancelScheduledChange();
                     if (_config != null)
                     {
                         if (_config.ExtendTimeStep > 0 && !_timeLimitManager.UnlimitedTime)
@@ -411,8 +423,7 @@ namespace cs2_rockthevote
                 // A map transition or replacement vote owns its own timer and menus.
                 if (_vote.Generation == generation)
                 {
-                    KillTimer();
-                    CloseVoteMenus();
+                    CleanupVote();
                     _pluginState.EofVoteHappening = false;
                 }
 #if DEBUG
@@ -447,6 +458,7 @@ namespace cs2_rockthevote
                     return;
                 }
 
+                ReleasePause(); // An earlier failed cleanup cannot be inherited by this ballot.
                 KillTimer();
                 CloseVoteMenus();
                 _voted.Clear();
@@ -467,6 +479,13 @@ namespace cs2_rockthevote
                 mapsEllected = _nominationManager.NominationWinners().Concat(mapsScrambled).Distinct().ToList();
 
                 var generation = _vote.Begin(GetVoteOptions());
+                // Main's single EndOfMapVote option also governs RTV ballots in this shared manager.
+                _pause.AcquireIfEnabled(generation, _mapGeneration, _eomConfig!.PauseMatchWhenVote, () =>
+                {
+                    var state = _gameRules.ReadPauseState();
+                    if (state == null) _plugin?.Logger.LogWarning("PauseMatchWhenVote cannot pause: game rules are unavailable.");
+                    return state;
+                }, () => Server.ExecuteCommand("mp_pause_match"));
                 var players = ServerManager.ValidPlayers();
                 _canVote = players.Length;
                 timeLeft = _config.VoteDuration;
@@ -511,27 +530,25 @@ namespace cs2_rockthevote
                     {
                         // Ensure flag is reset even if there's an exception in the timer callback
                         if (_vote.Generation != generation) return;
+                        _plugin?.Logger.LogError(ex, "Error in map vote timer.");
                         _vote.Reset();
-                        KillTimer(); // Make sure to kill the timer on exception
-                        CloseVoteMenus();
+                        CleanupVote();
                         _pluginState.EofVoteHappening = false;
 #if DEBUG
                         _plugin?.Logger.LogInformation("StartVote: Reset EofVoteHappening to false due to exception in timer callback");
 #endif
-                        _plugin?.Logger.LogError(ex, "Error in map vote timer.");
                     }
                 }, TimerFlags.REPEAT | TimerFlags.STOP_ON_MAPCHANGE);
             }
             catch (Exception ex)
             {
+                _plugin?.Logger.LogError(ex, "Error starting map vote.");
                 _vote.Reset();
-                KillTimer(); // Make sure to kill any timer if exception occurs
-                CloseVoteMenus();
+                CleanupVote();
                 _pluginState.EofVoteHappening = false;
 #if DEBUG
                 _plugin?.Logger.LogInformation("StartVote: Reset EofVoteHappening to false due to exception in StartVote");
 #endif
-                _plugin?.Logger.LogError(ex, "Error starting map vote.");
             }
         }
     }

@@ -1,4 +1,4 @@
-﻿using CounterStrikeSharp.API.Core;
+using CounterStrikeSharp.API.Core;
 using System.Text.Json.Serialization;
 
 namespace cs2_rockthevote
@@ -51,6 +51,7 @@ namespace cs2_rockthevote
         public int TriggerSecondsBeforeEnd { get; set; } = 120;
         public int TriggerRoundsBeforeEnd { get; set; } = 2;
         public float DelayToChangeInTheEnd { get; set; } = 6F;
+        public bool PauseMatchWhenVote { get; set; } = false;
         public bool AllowExtend { get; set; } = true;
         public bool RoundBased { get; set; } = true;
         public int ExtendTimeStep { get; set; } = 15;

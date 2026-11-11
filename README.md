@@ -1,3 +1,5 @@
+See [main-branch semantic backports and limits](docs/CSS379_MAIN_BACKPORTS.md) for the audited 11 commits.
+
 # CS2 Rock The Vote
 
 This migration branch targets CounterStrikeSharp.API **1.0.379 / .NET 10**, with a plugin-owned camera-follow screen menu. See [compatibility, controls, tests and required native acceptance](docs/CSS379_SCREEN_MENU.md). No game-server acceptance or deployment is claimed.
@@ -9,6 +11,11 @@ General purpose map voting plugin, started as a simple RTV and now has more feat
 
 # Enjoying the plugin?
 Please drop a ⭐ star in the repository 
+
+> [!WARNING]
+> When upgrading from Abnerfs' original version or another configuration schema, first back up `game/csgo/addons/counterstrikesharp/configs/plugins/RockTheVote/RockTheVote.json`, then update it to match this branch's schema. Preserve your customized settings, including integer `HudMenu` modes and VIP extension settings. Do not delete or replace your existing configuration without reviewing those settings.
+>
+> This source update does not automatically delete or migrate your configuration.
 
 > [!WARNING]
 > Notes from Oz-Lin:
@@ -77,7 +84,7 @@ Please drop a ⭐ star in the repository
 # Configs
 - A config file will be created in `addons/counterstrikesharp/configs/plugins/RockTheVote` the first time you load the plugin.
 - Changes in the config file will require you to reload the plugin or restart the server (change the map won't work).
-- Maps that will be used in RTV/nominate/votemap/end of map vote are located in `addons/counterstrikesharp/configs/plugins/RockTheVote/maplist.txt` (rename `maplist.example.txt` to `maplist.txt`)
+- Maps used in RTV/nominate/votemap/end of map vote are read only from `addons/counterstrikesharp/plugins/RockTheVote/maplist.txt`, next to the plugin DLL (`ModuleDirectory`). For a new installation, make a copy of `maplist.example.txt` named `maplist.txt` in that directory. Existing map lists are never rewritten or automatically moved. A missing plugin-local file causes an explicit load failure; there is no fallback to a config or shared map list.
 
 ## General config
 | Config         | Description                                                                      | Default Value | Min | Max |

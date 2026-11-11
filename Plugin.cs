@@ -26,7 +26,7 @@ namespace cs2_rockthevote
     public partial class Plugin : BasePlugin, IPluginConfig<Config>
     {
         public override string ModuleName => "RockTheVote";
-        public override string ModuleVersion => "1.9.7-css379-screenmenu";
+        public override string ModuleVersion => "1.9.7-css379-mainfixes";
         public override string ModuleAuthor => "abnerfs, Oz-Lin, [ZeRo]XiaoLinWuDi, theextr1m";
         public override string ModuleDescription => "https://github.com/oz-lin/cs2-rockthevote";
 
@@ -97,7 +97,7 @@ namespace cs2_rockthevote
                 _dependencyManager.OnPluginLoad(this);
                 _mapLister.OnLoad(this); // ensure map is loaded
                 RegisterListener<OnMapStart>(_dependencyManager.OnMapStart);
-            }, () => ScreenMenus.Dispose());
+            }, () => CleanupActions.Run(_endMapVoteManager.Stop, _changeMapManager.Stop, () => ScreenMenus.Dispose()));
 #if DEBUG
             Logger.LogInformation("Plugin loaded successfully");
 #endif
@@ -107,7 +107,7 @@ namespace cs2_rockthevote
 
         public override void Unload(bool hotReload)
         {
-            ScreenMenus?.Dispose();
+            CleanupActions.Run(_endMapVoteManager.Stop, _changeMapManager.Stop, () => ScreenMenus?.Dispose());
         }
 
         [GameEventHandler(HookMode.Post)]

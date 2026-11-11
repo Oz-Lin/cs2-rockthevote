@@ -26,28 +26,12 @@ namespace cs2_rockthevote
         public void LoadMaps()
         {
             Clear();
-            string mapsFile = Path.Combine(_plugin!.ModulePath, "../maplist.txt");
-            if (!File.Exists(mapsFile))
-            {
+            string moduleDirectory = _plugin!.ModuleDirectory;
 #if DEBUG
-                _plugin?.Logger.LogError($"MapLister: Maps file not found at {mapsFile}");
-#endif
-                throw new FileNotFoundException(mapsFile); // This throw means not compatible with AcceleratorCS2 MetaMod plugin
-            }
-#if DEBUG
+            string mapsFile = MapListPolicy.ResolvePath(moduleDirectory);
             _plugin?.Logger.LogInformation($"MapLister: Loading maps from {mapsFile}");
 #endif
-            Maps = File.ReadAllText(mapsFile)
-                .Replace("\r\n", "\n")
-                .Split("\n")
-                .Select(x => x.Trim())
-                .Where(x => !string.IsNullOrWhiteSpace(x) && !x.StartsWith("//"))
-                .Select(mapLine =>
-                {
-                    string[] args = mapLine.Split(":");
-                    return new Map(args[0], args.Length == 2 ? args[1] : null);
-                })
-                .ToArray();
+            Maps = MapListPolicy.Load(moduleDirectory);
 
             MapsLoaded = true;
 #if DEBUG

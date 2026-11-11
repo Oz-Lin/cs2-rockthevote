@@ -349,4 +349,190 @@ resourceFault.ReleaseAll(lease => { if (lease.Resolve() != null) removedEntities
 Check("retry never deletes replacement entity after successful deletion threw", removedEntities == 1 && resourceFault.Snapshot.Length == 0);
 nativeObject = null;
 Check("invalid captured identity resolves to no owned resource", identityLease.Resolve() == null);
+// These checks invoke the same MapListPolicy.Load/Parse used by live MapLister.
+{
+    const string mapListText = "\r\n  // comment\r\n \t\r\n DE_DUST2 \r\n de_thera : 3121217565 \r\nde_duplicate:42\r\nde_duplicate:42\r\n";
+    var parsedMaps = MapListPolicy.Parse(mapListText);
+    Check("map list ignores blank and trimmed comment lines", parsedMaps.Length == 4);
+    Check("map list retains existing name normalization", parsedMaps[0].Name == "de_dust2" && parsedMaps[0].Id == null);
+    Check("map list preserves name and workshop ID", parsedMaps[1].Name == "de_thera" && parsedMaps[1].Id == "3121217565");
+    Check("map list preserves exact duplicate entries and ordering", parsedMaps[2].Name == "de_duplicate" && parsedMaps[2].Id == "42" && parsedMaps[3].Name == "de_duplicate" && parsedMaps[3].Id == "42");
+    Check("map list CRLF and LF have equivalent results", MapListPolicy.Parse(mapListText.Replace("\r\n", "\n")).Select(map => (map.Name, map.Id)).SequenceEqual(parsedMaps.Select(map => (map.Name, map.Id))));
+    Check("empty or comment-only map list keeps existing empty result", MapListPolicy.Parse(" \r\n\t// comment\n").Length == 0);
+    var legacyColonMaps = MapListPolicy.Parse("de_one:123:456\nde_two:\n");
+    Check("map list preserves existing colon parsing contract", legacyColonMaps.Length == 2 && legacyColonMaps[0].Name == "de_one" && legacyColonMaps[0].Id == null && legacyColonMaps[1].Name == "de_two" && legacyColonMaps[1].Id == "");
+
+    string mapListFixtureName = "RockTheVote-maplist-" + Guid.NewGuid().ToString("N");
+    string mapListFixtureRoot = Path.GetFullPath(Path.Combine(Path.GetTempPath(), mapListFixtureName));
+    string originalMapListCwd = Directory.GetCurrentDirectory();
+    Directory.CreateDirectory(mapListFixtureRoot);
+    try
+    {
+        string pluginDirectory = Path.Combine(mapListFixtureRoot, "plugins", "Rock The Vote \u5730\u56fe");
+        string configDirectory = Path.Combine(mapListFixtureRoot, "configs", "plugins", "RockTheVote");
+        string sharedDirectory = Path.Combine(mapListFixtureRoot, "shared");
+        string unrelatedCwd = Path.Combine(mapListFixtureRoot, "unrelated working directory");
+        Directory.CreateDirectory(pluginDirectory);
+        Directory.CreateDirectory(configDirectory);
+        Directory.CreateDirectory(sharedDirectory);
+        Directory.CreateDirectory(unrelatedCwd);
+        string localMapList = Path.Combine(pluginDirectory, "maplist.txt");
+        string configMapList = Path.Combine(configDirectory, "maplist.txt");
+        string sharedMapList = Path.Combine(sharedDirectory, "maplist.txt");
+        string cwdMapList = Path.Combine(unrelatedCwd, "maplist.txt");
+        File.WriteAllText(Path.Combine(pluginDirectory, "RockTheVote.dll"), "fixture only; not an assembly");
+        File.WriteAllText(localMapList, mapListText);
+        File.WriteAllText(configMapList, "de_config_only");
+        File.WriteAllText(sharedMapList, "de_shared_only");
+        File.WriteAllText(cwdMapList, "de_cwd_only");
+        byte[] originalLocalBytes = File.ReadAllBytes(localMapList);
+
+        Check("map list path uses plugin directory including spaces and non-ASCII", MapListPolicy.ResolvePath(pluginDirectory) == localMapList);
+        Directory.SetCurrentDirectory(unrelatedCwd);
+        var loadedMaps = MapListPolicy.Load(pluginDirectory);
+        Check("map list ignores current directory and other map list locations", loadedMaps.Select(map => (map.Name, map.Id)).SequenceEqual(parsedMaps.Select(map => (map.Name, map.Id))));
+        Directory.SetCurrentDirectory(mapListFixtureRoot);
+        Check("map list source stays unchanged after cwd changes", MapListPolicy.Load(pluginDirectory).Select(map => (map.Name, map.Id)).SequenceEqual(loadedMaps.Select(map => (map.Name, map.Id))));
+        Check("map list loading never rewrites plugin-local bytes", File.ReadAllBytes(localMapList).SequenceEqual(originalLocalBytes));
+        Check("map list loading leaves config shared and cwd files unchanged", File.ReadAllText(configMapList) == "de_config_only" && File.ReadAllText(sharedMapList) == "de_shared_only" && File.ReadAllText(cwdMapList) == "de_cwd_only");
+
+        File.Delete(localMapList);
+        FileNotFoundException? missingMapList = null;
+        try { MapListPolicy.Load(pluginDirectory); } catch (FileNotFoundException error) { missingMapList = error; }
+        Check("missing plugin-local map list explicitly fails with its path", missingMapList?.FileName == localMapList);
+        Check("missing map list does not fall back copy or create", !File.Exists(localMapList) && Directory.GetFiles(pluginDirectory).Length == 1);
+        Check("failed map list load leaves alternate lists unchanged", File.ReadAllText(configMapList) == "de_config_only" && File.ReadAllText(sharedMapList) == "de_shared_only" && File.ReadAllText(cwdMapList) == "de_cwd_only");
+
+        string missingPluginDirectory = Path.Combine(mapListFixtureRoot, "not created");
+        bool missingDirectoryFailed = false;
+        try { MapListPolicy.Load(missingPluginDirectory); } catch (FileNotFoundException) { missingDirectoryFailed = true; }
+        Check("missing plugin directory is never created", missingDirectoryFailed && !Directory.Exists(missingPluginDirectory));
+    }
+    finally
+    {
+        Directory.SetCurrentDirectory(originalMapListCwd);
+        // Delete only the exact unique test fixture under the OS temporary directory.
+        string expectedFixtureRoot = Path.GetFullPath(Path.Combine(Path.GetTempPath(), mapListFixtureName));
+        if (!string.Equals(Path.GetFullPath(mapListFixtureRoot), expectedFixtureRoot, StringComparison.Ordinal))
+            throw new InvalidOperationException("Refusing cleanup outside the map-list test fixture.");
+        Directory.Delete(mapListFixtureRoot, recursive: true);
+    }
+}
+
+
+// Main PR39/PR40 semantic backport regressions. These policies are called by production code.
+{
+    var mainConfig = new Config();
+    Check("main pause option remains false by default", !mainConfig.EndOfMapVote.PauseMatchWhenVote);
+    mainConfig.EndOfMapVote.PauseMatchWhenVote = true;
+    Check("main pause option survives config roundtrip with custom integer HUD", JsonSerializer.Deserialize<Config>(JsonSerializer.Serialize(mainConfig)) is { EndOfMapVote.PauseMatchWhenVote: true, Rtv.HudMenu: 1 });
+    var ordinary = MapTarget.Resolve(new[] { new Map("de_dust2", null) }, "DE_DUST2");
+    Check("known-map selection is case insensitive", ordinary.Name == "de_dust2");
+    bool unknown = false; try { MapTarget.Resolve(new[] { new Map("de_dust2", null) }, "de_unknown"); } catch (ArgumentException) { unknown = true; }
+    Check("unknown winner cannot schedule a map command", unknown);
+    foreach (var bad in new[] { "", "../de_dust2", "de_a;quit", "de_a\nquit", "de_a\"", "/de_a", "de_a/" })
+    {
+        bool refused = false; try { MapTarget.From(new Map(bad, null)); } catch (ArgumentException) { refused = true; }
+        Check($"unsafe map command token refused: {bad.Replace('\n', ' ')}", refused);
+    }
+    foreach (var badId in new[] { "", "0", "-1", "123;quit", "18446744073709551616" })
+    {
+        bool refused = false; try { MapTarget.From(new Map("ze_test", badId)); } catch (ArgumentException) { refused = true; }
+        Check($"unsafe workshop ID refused: {badId}", refused);
+    }
+    var workshop = MapTarget.From(new Map("ze_aztecnoob_p", "3070231528"));
+    Check("local map uses changelevel", ordinary.ChangeCommand(true) == "changelevel de_dust2");
+    Check("workshop ID uses host_workshop_map", workshop.ChangeCommand(false) == "host_workshop_map 3070231528");
+    Check("workshop name uses ds_workshop_changelevel", ordinary.ChangeCommand(false) == "ds_workshop_changelevel de_dust2");
+    string nextLevel = "old"; int nextWrites = 0;
+    NextLevelPolicy.Assign(ordinary, true, () => nextLevel, value => { nextLevel = value; nextWrites++; });
+    Check("real local winner updates nextlevel synchronously", nextLevel == "de_dust2" && nextWrites == 1);
+    NextLevelPolicy.Assign(workshop, false, () => throw new Exception("ID path must not read nextlevel"), _ => throw new Exception("ID path must not set nextlevel"));
+    Check("workshop ID omission from main is retained", nextWrites == 1);
+    bool mismatch = false; try { NextLevelPolicy.Assign(ordinary, false, () => "different", _ => { }); } catch (InvalidOperationException) { mismatch = true; }
+    Check("failed nextlevel readback is explicit", mismatch);
+    bool writeFailure = false; try { NextLevelPolicy.Assign(ordinary, true, () => "old", _ => throw new IOException("write")); } catch (IOException) { writeFailure = true; }
+    Check("nextlevel write failure is not claimed successful", writeFailure);
+    var transitions = new MapTransitionPolicy();
+    var targetA = transitions.Schedule(ordinary, true, "eom");
+    Check("round callback cannot consume match-end schedule", transitions.Take(false) == null && transitions.Pending);
+    Check("match callback captures exact immutable schedule", ReferenceEquals(transitions.Take(true), targetA));
+    Check("duplicate scheduling callback cannot take again", transitions.Take(true) == null);
+    var targetB = transitions.Schedule(workshop, false, "rtv");
+    Check("replacement schedule invalidates delayed previous map", !transitions.TryExecute(targetA));
+    Check("current delayed target executes once", transitions.TryExecute(targetB) && !transitions.TryExecute(targetB));
+    var beforeMapChange = transitions.Schedule(ordinary, false, "rtv"); transitions.Reset();
+    Check("map change or unload invalidates old timer target", !transitions.IsCurrent(beforeMapChange) && !transitions.TryExecute(beforeMapChange) && transitions.Current == null && !transitions.Pending);
+    var mutableMap = new Map("de_dust2", null); var snapshot = MapTarget.From(mutableMap); mutableMap.Name = "de_changed";
+    Check("reload or mutable map object cannot alter captured target", snapshot.Name == "de_dust2");
+    var endBallot = new MapVotePolicy(); int resolved = 0; string? resolvedWinner = null;
+    void FinishPanel() { if (endBallot.TryEnd(endBallot.Generation, _ => 0, out var result)) { resolved++; resolvedWinner = result?.Winner; } }
+    endBallot.Begin(new[] { "de_dust2" }); FinishPanel(); FinishPanel();
+    Check("match-end policy ends zero-ballot candidate synchronously once", resolved == 1 && resolvedWinner == "de_dust2" && !endBallot.Active);
+    endBallot.Begin(Array.Empty<string>()); FinishPanel();
+    Check("empty next ballot cannot reuse stale winner", resolved == 2 && resolvedWinner == null);
+    var free = new MatchPauseSnapshot(false, false); var alreadyPaused = new MatchPauseSnapshot(true, false);
+    int pauses = 0, unpauses = 0; var pause = new VotePauseLease();
+    Check("disabled pause setting does not enqueue", !pause.Acquire(1, 1, false, free, () => pauses++) && pauses == 0);
+    Check("unavailable game rules do not claim pause ownership", !pause.Acquire(1, 1, true, null, () => pauses++));
+    Check("preexisting admin pause is never acquired", !pause.Acquire(1, 1, true, alreadyPaused, () => pauses++));
+    pause.Release(1, 1, alreadyPaused, () => unpauses++);
+    Check("preexisting admin pause is not unpaused", unpauses == 0);
+    Check("known unpaused ballot acquires request lease", pause.Acquire(2, 1, true, free, () => pauses++) && pause.Pending);
+    pause.Release(1, 1, free, () => unpauses++);
+    Check("old vote cannot release new pause lease", pause.Pending && unpauses == 0);
+    pause.Release(2, 1, free, () => unpauses++);
+    Check("same generation queues cleanup even before pause was observed", !pause.Pending && unpauses == 1);
+    pause.Release(2, 1, free, () => unpauses++);
+    Check("pause cleanup is idempotent", unpauses == 1);
+    pause.Acquire(3, 1, true, free, () => pauses++); pause.Release(3, 1, new(true, true), () => unpauses++);
+    Check("team or technical timeout takes precedence over own pause", !pause.Pending && unpauses == 1);
+    pause.Acquire(4, 1, true, free, () => pauses++); pause.Release(4, 2, free, () => unpauses++);
+    Check("old-map cleanup never unpauses a new map", !pause.Pending && unpauses == 1);
+    try { pause.Acquire(5, 2, true, free, () => throw new IOException("after enqueue")); } catch (IOException) { }
+    Check("partial pause enqueue failure retains cleanup", pause.Pending);
+    try { pause.Release(5, 2, free, () => throw new IOException("unpause enqueue")); } catch (IOException) { }
+    Check("failed unpause enqueue remains retryable", pause.Pending);
+    pause.Release(5, 2, free, () => unpauses++);
+    Check("retried cleanup releases same lease", !pause.Pending && unpauses == 2);
+    pause.Acquire(6, 2, true, free, () => pauses++); pause.Abandon();
+    Check("map lifecycle explicitly abandons old lease", !pause.Pending);
+    int cleanupCount = 0;
+    try { CleanupActions.Run(() => { cleanupCount++; throw new IOException("first"); }, () => cleanupCount++, () => { cleanupCount++; throw new IOException("last"); }); } catch (AggregateException e) { Check("shutdown preserves all cleanup exceptions", e.InnerExceptions.Count == 2); }
+    Check("startup or unload failure does not skip later cleanup", cleanupCount == 3);
+}
+
+{
+    var noNative = new VotePauseLease();
+    Check("disabled pause never reads native game rules", !noNative.AcquireIfEnabled(1, 1, false, () => throw new Exception("native read"), () => throw new Exception("pause")));
+    noNative.ReleaseIfPending(1, 1, () => throw new Exception("native read"), () => throw new Exception("unpause"));
+    Check("no pause lease never reads native state during cleanup", !noNative.Pending);
+    bool activeFlag = true; int cleanupAttempts = 0;
+    try { CleanupActions.ResetThenRun(() => activeFlag = false, () => { cleanupAttempts++; throw new IOException("timer kill"); }, () => { cleanupAttempts++; throw new IOException("menu cleanup"); }, () => cleanupAttempts++); } catch (AggregateException) { }
+    Check("timer or menu cleanup failure cannot leave vote logically active", !activeFlag && cleanupAttempts == 3);
+    var replacementPolicy = new MapTransitionPolicy(); var staleTarget = replacementPolicy.Schedule(MapTarget.From(new Map("de_dust2", null)), false, "rtv");
+    replacementPolicy.Reset();
+    try { CleanupActions.Run(() => throw new IOException("old timer kill")); } catch (AggregateException) { }
+    Check("failed old timer cancellation cannot execute superseded map ticket", !replacementPolicy.TryExecute(staleTarget));
+}
+{
+    string level = "previous"; var levelLease = new NextLevelLease();
+    var normalMap = MapTarget.From(new Map("de_dust2", null));
+    levelLease.Assign(normalMap, true, () => level, value => level = value);
+    Check("nextlevel ownership captures and sets real target", levelLease.Pending && level == "de_dust2");
+    levelLease.Release(() => level, value => level = value);
+    levelLease.Assign(MapTarget.From(new Map("ze_test", "123")), false, () => level, _ => throw new Exception("ID write"));
+    Check("normal to workshop-ID replacement removes stale own nextlevel", level == "previous" && !levelLease.Pending);
+    levelLease.Assign(normalMap, true, () => level, value => level = value); level = "external";
+    levelLease.Release(() => level, _ => throw new Exception("external overwrite"));
+    Check("nextlevel cancellation never overwrites later external value", level == "external" && !levelLease.Pending);
+    levelLease.Assign(normalMap, true, () => level, value => level = value);
+    try { levelLease.Release(() => level, _ => throw new IOException("restore")); } catch (IOException) { }
+    Check("failed owned nextlevel restoration stays retryable", levelLease.Pending);
+    levelLease.Release(() => level, value => level = value);
+    Check("owned nextlevel restoration retry preserves baseline", level == "external" && !levelLease.Pending);
+    levelLease.Assign(normalMap, true, () => level, value => level = value); levelLease.Abandon();
+    levelLease.Release(() => throw new Exception("old map read"), _ => throw new Exception("old map write"));
+    Check("map transition abandons old nextlevel lease without native access", !levelLease.Pending);
+}
 Console.WriteLine($"SUMMARY {passed} passed, 0 failed; managed only, no native game execution.");

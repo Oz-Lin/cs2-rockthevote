@@ -1,4 +1,4 @@
-﻿using CounterStrikeSharp.API;
+using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Cvars;
 using CounterStrikeSharp.API.Modules.Timers;
@@ -93,6 +93,12 @@ namespace cs2_rockthevote
 
         public void OnLoad(Plugin plugin)
         {
+            plugin.RegisterEventHandler<EventCsWinPanelMatch>((ev, info) =>
+            {
+                // Resolve now, before ChangeMapManager's Post hook observes the scheduled map.
+                _voteManager.FinishActiveVote();
+                return HookResult.Continue;
+            }, HookMode.Pre);
             _gameMode = ConVar.Find("game_mode");
             _gameType = ConVar.Find("game_type");
 
